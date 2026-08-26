@@ -1,5 +1,5 @@
 /**
- * IndexedDB 本地缓存封装：存储业务快照，实现「首次拉取，之后本地极速加载」。ceslxiang 
+ * IndexedDB 本地缓存封装：存储业务快照，实现「首次拉取，之后本地极速加载」。ceslxiang 收待发送的发
  */
 const DB_NAME = 'teac_os'
 const DB_VERSION = 1
