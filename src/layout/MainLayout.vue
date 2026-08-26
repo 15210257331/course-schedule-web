@@ -1,0 +1,600 @@
+<template>
+  <div class="layout">
+    <!-- 顶部固定导航（Stripe / 掠影网络风格） -->
+    <header class="topbar" :class="{ scrolled }">
+      <nav class="topbar-inner">
+        <!-- 品牌 -->
+        <router-link to="/dashboard" class="brand">
+          <span class="brand-mark">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2.5"
+                d="M13 10V3L4 14h7v7l9-11h-7z"
+              />
+            </svg>
+          </span>
+          <span class="brand-text">TeacherOS</span>
+        </router-link>
+
+        <!-- 桌面端导航 -->
+        <div class="nav-links">
+          <router-link
+            v-for="item in navItems"
+            :key="item.name"
+            :to="{ name: item.name }"
+            class="nav-link"
+            :class="{ active: isActive(item.name) }"
+          >
+            {{ item.title }}
+          </router-link>
+        </div>
+
+        <div class="topbar-right">
+          <!-- 主题切换 -->
+          <button class="icon-btn" aria-label="切换主题" @click="toggleTheme">
+            <svg v-if="isDark" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.5"
+                d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"
+              />
+            </svg>
+            <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.5"
+                d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"
+              />
+            </svg>
+          </button>
+
+          <!-- 提醒中心 -->
+          <el-popover width="340" trigger="click" placement="bottom-end" popper-class="notify-popper">
+            <template #reference>
+              <button class="icon-btn" aria-label="提醒中心">
+                <el-badge :value="unreadCount" :hidden="!unreadCount" :max="99">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="1.5"
+                      d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+                    />
+                  </svg>
+                </el-badge>
+              </button>
+            </template>
+            <div class="notify-panel">
+              <div class="flex-between mb-16">
+                <span class="card-title" style="margin: 0">提醒中心</span>
+                <el-button link type="primary" size="small" @click="markAllRead">全部已读</el-button>
+              </div>
+              <div v-if="!notifications.length" class="text-muted">暂无提醒</div>
+              <div
+                v-for="n in notifications"
+                :key="n.id"
+                class="notify-item"
+                :class="{ unread: !n.isRead }"
+              >
+                <div class="notify-title">{{ n.title }}</div>
+                <div class="text-muted">{{ n.content }}</div>
+              </div>
+            </div>
+          </el-popover>
+
+          <!-- 用户菜单 -->
+          <div class="user-zone">
+            <button class="avatar-btn" @click.stop="userMenuOpen = !userMenuOpen">
+              {{ userInitial }}
+            </button>
+            <transition name="dd">
+              <div v-if="userMenuOpen" class="user-menu">
+                <div class="user-menu-head">
+                  <p class="user-menu-name">{{ authStore.user?.nickname || '教师' }}</p>
+                  <p class="user-menu-sub">{{ authStore.user?.username || '' }}</p>
+                </div>
+                <div class="user-menu-body">
+                  <router-link :to="{ name: 'profile' }" class="user-menu-item" @click="userMenuOpen = false">
+                    <el-icon><User /></el-icon>
+                    个人中心
+                  </router-link>
+                  <router-link :to="{ name: 'settings' }" class="user-menu-item" @click="userMenuOpen = false">
+                    <el-icon><Setting /></el-icon>
+                    系统设置
+                  </router-link>
+                </div>
+                <div class="user-menu-foot">
+                  <button class="user-menu-item danger" @click="handleLogout">
+                    <el-icon><SwitchButton /></el-icon>
+                    退出登录
+                  </button>
+                </div>
+              </div>
+            </transition>
+          </div>
+
+          <!-- 移动端菜单按钮 -->
+          <button class="icon-btn mobile-menu-btn" aria-label="菜单" @click="mobileOpen = !mobileOpen">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path
+                v-if="!mobileOpen"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.5"
+                d="M4 6h16M4 12h16M4 18h16"
+              />
+              <path
+                v-else
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.5"
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        </div>
+      </nav>
+
+      <!-- 移动端导航抽屉 -->
+      <transition name="slide">
+        <div v-if="mobileOpen" class="mobile-nav">
+          <div class="mobile-nav-inner">
+            <router-link
+              v-for="item in navItems"
+              :key="item.name"
+              :to="{ name: item.name }"
+              class="mobile-nav-link"
+              :class="{ active: isActive(item.name) }"
+              @click="mobileOpen = false"
+            >
+              {{ item.title }}
+            </router-link>
+          </div>
+        </div>
+      </transition>
+    </header>
+
+    <!-- 主内容：居中容器 -->
+    <main class="main">
+      <div class="main-inner">
+        <router-view />
+      </div>
+    </main>
+  </div>
+</template>
+
+<script setup>
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { ElMessageBox } from 'element-plus'
+import { User, Setting, SwitchButton } from '@element-plus/icons-vue'
+import { useAuthStore } from '@/store/auth'
+import { notificationApi } from '@/api/notification'
+
+const route = useRoute()
+const router = useRouter()
+const authStore = useAuthStore()
+
+const navItems = [
+  { name: 'dashboard', title: '工作台' },
+  { name: 'schedule', title: '课程表' },
+  { name: 'courses', title: '课程管理' },
+  { name: 'students', title: '学生管理' },
+  { name: 'organizations', title: '机构管理' },
+  { name: 'salaryRules', title: '收费规则' },
+  { name: 'income', title: '收入统计' }
+]
+
+function isActive(name) {
+  return route.name === name
+}
+
+// ---------- 主题 ----------
+const isDark = ref(document.documentElement.classList.contains('dark'))
+function toggleTheme() {
+  isDark.value = !isDark.value
+  document.documentElement.classList.toggle('dark', isDark.value)
+  localStorage.setItem('theme', isDark.value ? 'dark' : 'light')
+}
+
+// ---------- 滚动阴影 ----------
+const scrolled = ref(false)
+function onScroll() {
+  scrolled.value = window.scrollY > 4
+}
+
+// ---------- 用户菜单 ----------
+const userMenuOpen = ref(false)
+const userInitial = computed(() =>
+  (authStore.user?.nickname || authStore.user?.username || '教').charAt(0).toUpperCase()
+)
+function onDocClick(e) {
+  if (!e.target.closest('.user-zone')) userMenuOpen.value = false
+}
+
+async function handleLogout() {
+  userMenuOpen.value = false
+  await ElMessageBox.confirm('确定要退出登录吗？', '提示', { type: 'warning' })
+  authStore.logout()
+  router.push({ name: 'login' })
+}
+
+// ---------- 移动端 ----------
+const mobileOpen = ref(false)
+
+// ---------- 提醒 ----------
+const notifications = ref([])
+const unreadCount = computed(() => notifications.value.filter((n) => !n.isRead).length)
+
+async function loadNotifications() {
+  try {
+    notifications.value = await notificationApi.list(20)
+  } catch (e) {
+    /* 静默 */
+  }
+}
+
+async function markAllRead() {
+  await notificationApi.markAllRead()
+  loadNotifications()
+}
+
+onMounted(() => {
+  loadNotifications()
+  window.addEventListener('scroll', onScroll, { passive: true })
+  document.addEventListener('click', onDocClick)
+})
+onBeforeUnmount(() => {
+  window.removeEventListener('scroll', onScroll)
+  document.removeEventListener('click', onDocClick)
+})
+</script>
+
+<style lang="scss" scoped>
+.layout {
+  min-height: 100%;
+}
+
+// ---------- 顶部导航 ----------
+.topbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  border-bottom: 1px solid transparent;
+  background: var(--color-canvas);
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+
+  &.scrolled {
+    background: color-mix(in srgb, var(--color-canvas) 90%, transparent);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-bottom-color: var(--color-border);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  }
+}
+
+.topbar-inner {
+  max-width: 1280px;
+  margin: 0 auto;
+  height: 56px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+
+  @media (min-width: 640px) {
+    padding: 0 24px;
+  }
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+
+  .brand-mark {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: var(--color-primary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+
+    svg {
+      width: 14px;
+      height: 14px;
+    }
+  }
+
+  .brand-text {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--color-ink);
+  }
+}
+
+.nav-links {
+  display: none;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+
+  @media (min-width: 960px) {
+    display: flex;
+  }
+
+  .nav-link {
+    padding: 6px 12px;
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: 8px;
+    color: var(--color-tertiary);
+    transition: color 0.15s ease, background 0.15s ease;
+
+    &:hover {
+      color: var(--color-ink);
+      background: var(--color-surface);
+    }
+
+    &.active {
+      color: var(--color-ink);
+      background: var(--color-surface);
+    }
+  }
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.icon-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+
+  svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  &:hover {
+    color: var(--color-ink);
+    background: var(--color-surface);
+  }
+
+  :deep(.el-badge__content) {
+    border: none;
+  }
+}
+
+// ---------- 用户菜单 ----------
+.user-zone {
+  position: relative;
+}
+
+.avatar-btn {
+  height: 32px;
+  width: 32px;
+  border-radius: 50%;
+  background: rgba(99, 91, 255, 0.1);
+  color: var(--color-primary);
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border: none;
+  transition: background 0.15s ease;
+
+  &:hover {
+    background: rgba(99, 91, 255, 0.15);
+  }
+}
+
+.user-menu {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  margin-top: 8px;
+  width: 224px;
+  background: var(--color-canvas);
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  padding: 4px 0;
+  z-index: 50;
+
+  .user-menu-head {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--color-border);
+
+    .user-menu-name {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--color-ink);
+      margin: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .user-menu-sub {
+      font-size: 12px;
+      color: var(--color-muted);
+      margin: 2px 0 0;
+    }
+  }
+
+  .user-menu-body {
+    padding: 4px 0;
+  }
+
+  .user-menu-foot {
+    border-top: 1px solid var(--color-border);
+    padding-top: 4px;
+  }
+
+  .user-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 16px;
+    font-size: 13px;
+    color: var(--color-secondary);
+    background: transparent;
+    border: none;
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+    transition: color 0.15s ease, background 0.15s ease;
+
+    .el-icon {
+      color: var(--color-muted);
+      font-size: 16px;
+    }
+
+    &:hover {
+      color: var(--color-ink);
+      background: var(--color-surface);
+    }
+
+    &.danger:hover {
+      color: var(--color-danger);
+      background: rgba(223, 27, 65, 0.05);
+
+      .el-icon {
+        color: var(--color-danger);
+      }
+    }
+  }
+}
+
+// ---------- 移动端 ----------
+.mobile-menu-btn {
+  @media (min-width: 960px) {
+    display: none;
+  }
+}
+
+.mobile-nav {
+  border-top: 1px solid var(--color-border);
+  background: var(--color-canvas);
+
+  @media (min-width: 960px) {
+    display: none;
+  }
+
+  .mobile-nav-inner {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 8px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .mobile-nav-link {
+    display: block;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-tertiary);
+    transition: background 0.15s ease;
+
+    &:hover {
+      background: var(--color-surface);
+    }
+
+    &.active {
+      color: var(--color-ink);
+      background: var(--color-surface);
+    }
+  }
+}
+
+// ---------- 主内容 ----------
+.main {
+  padding-top: 56px;
+  min-height: 100vh;
+}
+
+.main-inner {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+
+  @media (min-width: 640px) {
+    padding: 32px 24px 64px;
+  }
+}
+
+// ---------- 过渡动画 ----------
+.dd-enter-active {
+  transition: all 0.2s ease-out;
+}
+.dd-leave-active {
+  transition: all 0.15s ease-in;
+}
+.dd-enter-from,
+.dd-leave-to {
+  opacity: 0;
+  transform: translateY(-8px) scale(0.98);
+}
+
+.slide-enter-active {
+  transition: all 0.2s ease-out;
+}
+.slide-leave-active {
+  transition: all 0.15s ease-in;
+}
+.slide-enter-from,
+.slide-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+</style>
+
+<style lang="scss">
+// 提醒面板（popper 挂载在 body，需非 scoped）
+.notify-popper {
+  .notify-item {
+    padding: 8px 0;
+    border-bottom: 1px solid var(--color-border);
+
+    &:last-child {
+      border-bottom: none;
+    }
+
+    .notify-title {
+      font-size: 14px;
+      color: var(--color-ink);
+    }
+
+    &.unread .notify-title {
+      font-weight: 600;
+    }
+  }
+}
+</style>

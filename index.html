@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TeacherOS · 兼职教师工作台</title>
+    <!-- 防闪烁：在 CSS 加载前同步设置 dark class -->
+    <script>
+      ;(function () {
+        var t = localStorage.getItem('theme')
+        var d = t === 'dark' || (t !== 'light' && matchMedia('(prefers-color-scheme:dark)').matches)
+        if (d) document.documentElement.classList.add('dark')
+      })()
+    </script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
