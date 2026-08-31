@@ -1,197 +1,265 @@
 <template>
-  <div class="page-container">
-    <div class="stat-grid mb-16">
-      <el-card class="stat-card">
-        <div class="stat-label">近 {{ days }} 天收入</div>
-        <div class="stat-value">¥{{ formatMoney(report.total) }}</div>
-      </el-card>
-      <el-card class="stat-card">
-        <div class="stat-label">授课时长</div>
-        <div class="stat-value">{{ report.totalMinutes }} <span class="unit">小时</span></div>
-      </el-card>
-      <el-card class="stat-card">
-        <div class="stat-label">课时数</div>
-        <div class="stat-value">{{ report.courseCount }} <span class="unit">节</span></div>
-      </el-card>
-      <el-card class="stat-card">
-        <div class="stat-label">统计周期</div>
-        <div class="stat-value" style="font-size: 20px">
-          <el-select v-model="days" style="width: 110px" @change="load">
-            <el-option :value="7" label="近 7 天" />
-            <el-option :value="30" label="近 30 天" />
-            <el-option :value="90" label="近 90 天" />
-            <el-option :value="365" label="近一年" />
-          </el-select>
-        </div>
-      </el-card>
+  <div class="fee-detail">
+    <!-- 顶部标题 + 维度切换 + 月份选择 -->
+    <div class="fee-head">
+      <div>
+        <h2 class="page-title">费用详情</h2>
+        <p class="text-muted" style="margin: 4px 0 0">{{ dimLabel }} × 课程数 = 费用</p>
+      </div>
+      <div class="fee-head-controls">
+        <el-radio-group v-model="dimension" @change="loadReport">
+          <el-radio-button value="student">学生</el-radio-button>
+          <el-radio-button value="organization">机构</el-radio-button>
+        </el-radio-group>
+        <el-date-picker
+          v-model="month"
+          type="month"
+          :clearable="false"
+          value-format="YYYY-MM"
+          placeholder="选择月份"
+          @change="loadReport"
+        />
+      </div>
     </div>
 
-    <el-card class="mb-16">
-      <h3 class="card-title">收入趋势</h3>
-      <div ref="trendRef" class="trend-chart" />
-    </el-card>
+    <!-- 汇总 -->
+    <div class="fee-total card">
+      <span class="text-muted">{{ monthLabel }} · 共 {{ rows.length }}{{ dimUnit }} · {{ totalCourses }} 节</span>
+      <span class="fee-total-value">¥{{ formatMoney(totalFee) }}</span>
+    </div>
 
-    <el-row :gutter="16">
-      <el-col :span="8">
-        <el-card>
-          <h3 class="card-title">机构排行</h3>
-          <div ref="orgRef" class="chart" />
-        </el-card>
-      </el-col>
-      <el-col :span="8">
-        <el-card>
-          <h3 class="card-title">学生排行</h3>
-          <div ref="studentRef" class="chart" />
-        </el-card>
-      </el-col>
-      <el-col :span="8">
-        <el-card>
-          <h3 class="card-title">科目排行</h3>
-          <div ref="subjectRef" class="chart" />
-        </el-card>
-      </el-col>
-    </el-row>
+    <!-- 明细卡片列表 -->
+    <div class="card">
+      <div class="card-head">
+        <h3 class="card-title">明细列表</h3>
+        <span class="text-muted">按费用降序</span>
+      </div>
+      <div v-if="rows.length" class="fee-list">
+        <div v-for="(r, i) in rows" :key="i" class="fee-item">
+          <div class="fee-item-top">
+            <span class="fee-rank">{{ i + 1 }}</span>
+            <span class="fee-name">
+              <span class="fee-name-text">{{ r.name || '未分类' }}</span>
+              <span v-if="subText(r)" class="fee-sub">{{ subText(r) }}</span>
+            </span>
+            <span class="fee-count">{{ formula(r) }}</span>
+            <span class="fee-amount">¥{{ formatMoney(r.fee) }}</span>
+          </div>
+          <div class="fee-bar">
+            <div class="fee-bar-fill" :style="{ width: barWidth(r.fee) }" />
+          </div>
+        </div>
+      </div>
+      <el-empty v-else description="暂无费用数据" :image-size="80" />
+    </div>
   </div>
 </template>
 
 <script setup>
-import { onBeforeUnmount, onMounted, reactive, ref, nextTick } from 'vue'
-import * as echarts from 'echarts'
+import { computed, onMounted, ref } from 'vue'
 import { dashboardApi } from '@/api/dashboard'
-import { formatMoney } from '@/utils/date'
+import { formatMoney, dayjs } from '@/utils/date'
 
-const days = ref(30)
-const report = reactive({})
-const trendRef = ref()
-const orgRef = ref()
-const studentRef = ref()
-const subjectRef = ref()
-const charts = []
+/* 默认选中上月，统计该月整月数据 */
+const month = ref(dayjs().subtract(1, 'month').format('YYYY-MM'))
+const dimension = ref('student')
+const rows = ref([])
 
-function chartColors() {
-  const dark = document.documentElement.classList.contains('dark')
-  return {
-    axis: dark ? '#9094a1' : '#697386',
-    split: dark ? '#2e303a' : '#e3e8ee'
-  }
+const dimLabel = computed(() => (dimension.value === 'organization' ? '机构' : '学生'))
+const dimUnit = computed(() => (dimension.value === 'organization' ? '个机构' : '名学生'))
+const monthLabel = computed(() => dayjs(month.value).format('YYYY年M月'))
+const totalCourses = computed(() => rows.value.reduce((s, r) => s + (Number(r.courseCount) || 0), 0))
+const totalFee = computed(() => rows.value.reduce((s, r) => s + (Number(r.fee) || 0), 0))
+
+/* 单价 = 费用 / 课程数，展示成「N节 × 单价 = 费用」 */
+function formula(r) {
+  const cnt = Number(r.courseCount) || 0
+  const fee = Number(r.fee) || 0
+  if (!cnt) return '0 节'
+  const unit = Number((fee / cnt).toFixed(2))
+  return `${cnt}节 × ${unit} = ${fee}`
 }
 
-function pieOption(data, palette) {
-  return {
-    tooltip: { trigger: 'item', formatter: '{b}: ¥{c}' },
-    color: palette,
-    series: [
-      {
-        type: 'pie',
-        radius: ['40%', '68%'],
-        data: data.map((d) => ({ name: d.name || '未分类', value: Number(d.value) })),
-        label: { formatter: '{b}\n¥{c}' }
-      }
-    ]
-  }
+/* 学生维度显示机构名，机构维度显示该机构下所有学生名（· 分割） */
+function subText(r) {
+  return dimension.value === 'organization' ? r.studentNames || '' : r.organizationName || ''
 }
 
-function render(el, option) {
-  if (!el) return
-  const chart = echarts.init(el)
-  chart.setOption(option)
-  charts.push(chart)
+/* 进度条宽度 = 该生费用 / 最高费用，最高者占满 */
+const maxFee = computed(() => rows.value.reduce((m, r) => Math.max(m, Number(r.fee) || 0), 0))
+function barWidth(fee) {
+  const n = Number(fee) || 0
+  if (!maxFee.value) return '0%'
+  return `${Math.max(4, Math.round((n / maxFee.value) * 100))}%`
 }
 
-async function load() {
-  const r = await dashboardApi.incomeReport(days.value)
-  Object.assign(report, r)
-  await nextTick()
-  const daysArr = (r.trend || []).map((d) => d.day.slice(5))
-  const values = (r.trend || []).map((d) => Number(d.income))
-  const c = chartColors()
-  render(trendRef.value, {
-    grid: { left: 40, right: 20, top: 20, bottom: 30 },
-    tooltip: { trigger: 'axis' },
-    xAxis: {
-      type: 'category',
-      data: daysArr,
-      boundaryGap: false,
-      axisLabel: { color: c.axis },
-      axisLine: { lineStyle: { color: c.split } }
-    },
-    yAxis: { type: 'value', axisLabel: { color: c.axis }, splitLine: { lineStyle: { color: c.split } } },
-    series: [
-      {
-        type: 'line',
-        data: values,
-        smooth: true,
-        symbol: 'none',
-        lineStyle: { width: 2 },
-        areaStyle: { opacity: 0.12 },
-        itemStyle: { color: '#635bff' }
-      }
-    ]
-  })
-  const palette = ['#635bff', '#30b130', '#f5a623', '#df1b41', '#0073e6', '#8a84ff']
-  render(orgRef.value, pieOption(r.byOrganization || [], palette))
-  render(studentRef.value, pieOption(r.byStudent || [], [...palette].reverse()))
-  render(subjectRef.value, pieOption(r.bySubject || [], ['#0073e6', '#635bff', '#30b130', '#f5a623', '#df1b41']))
-}
-
-function resize() {
-  charts.forEach((c) => c.resize())
+async function loadReport() {
+  const m = dayjs(month.value)
+  const start = m.startOf('month').format('YYYY-MM-DD')
+  const end = m.endOf('month').format('YYYY-MM-DD')
+  const r = await dashboardApi.incomeReportRange(start, end)
+  rows.value = (dimension.value === 'organization' ? r.organizationFeeDetail : r.studentFeeDetail) || []
 }
 
 onMounted(() => {
-  load()
-  window.addEventListener('resize', resize)
-})
-onBeforeUnmount(() => {
-  window.removeEventListener('resize', resize)
-  charts.forEach((c) => c.dispose())
+  loadReport()
 })
 </script>
 
 <style lang="scss" scoped>
-.stat-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
+.fee-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.fee-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
   gap: 12px;
-
-  @media (min-width: 900px) {
-    grid-template-columns: repeat(4, 1fr);
-    gap: 16px;
-  }
-
-  .stat-card {
-    .stat-label {
-      font-size: 12px;
-      font-weight: 600;
-      color: var(--color-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-    .stat-value {
-      font-size: 24px;
-      font-weight: 700;
-      margin-top: 8px;
-      color: var(--color-ink);
-      font-variant-numeric: tabular-nums;
-      .unit {
-        font-size: 14px;
-        font-weight: 400;
-        color: var(--color-muted);
-      }
-    }
-  }
-}
-.trend-chart {
-  height: 260px;
-}
-.chart {
-  height: 280px;
+  flex-wrap: wrap;
 }
 
-@media (max-width: 960px) {
-  :deep(.el-row .el-col) {
-    width: 100%;
+.fee-head-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.page-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+
+.card {
+  background: var(--color-canvas);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  padding: 20px;
+  min-width: 0;
+
+  .card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     margin-bottom: 16px;
+
+    .card-title {
+      margin: 0;
+    }
+  }
+}
+
+.fee-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+
+  .fee-total-value {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--color-primary);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.fee-list {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.fee-item {
+  .fee-item-top {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 6px;
+  }
+
+  .fee-rank {
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 600;
+    border-radius: 6px;
+    color: var(--color-muted);
+    background: var(--color-surface);
+    flex-shrink: 0;
+  }
+
+  .fee-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-ink);
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    overflow: hidden;
+
+    .fee-name-text {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      flex-shrink: 1;
+    }
+
+    .fee-sub {
+      font-size: 12px;
+      font-weight: 400;
+      color: var(--color-muted);
+      padding: 1px 8px;
+      border-radius: 999px;
+      background: var(--color-surface);
+      white-space: nowrap;
+      flex-shrink: 0;
+      max-width: 40%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  }
+
+  .fee-count {
+    font-size: 12px;
+    color: var(--color-muted);
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+  }
+
+  .fee-amount {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--color-ink);
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+    min-width: 88px;
+    text-align: right;
+  }
+
+  .fee-bar {
+    height: 8px;
+    border-radius: 999px;
+    background: var(--color-surface);
+    overflow: hidden;
+  }
+
+  .fee-bar-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--color-primary), #8a84ff);
+    transition: width 0.3s ease;
   }
 }
 </style>

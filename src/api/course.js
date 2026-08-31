@@ -1,8 +1,9 @@
 import request from '@/utils/request'
 
 export const courseApi = {
-  list: (start, end) =>
-    request.get('/courses', { params: { start, end } }),
+  list: (start, end, title) =>
+    request.get('/courses', { params: { start, end, title } }),
+  page: (data) => request.post('/courses/page', data),
   get: (id) => request.get(`/courses/${id}`),
   create: (data) => request.post('/courses', data),
   update: (id, data) => request.put(`/courses/${id}`, data),

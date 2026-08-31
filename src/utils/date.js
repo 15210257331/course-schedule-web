@@ -61,3 +61,17 @@ export const COURSE_COLORS = [
   '#2BB3A3',
   '#F5729B'
 ]
+
+/** 课程类型对应的标签色（日历/模板卡片的类型胶囊使用） */
+export const COURSE_TYPE_COLORS = {
+  一对一: '#635bff',
+  小班课: '#2BB3A3',
+  大班课: '#f5a623',
+  家教版: '#0073e6',
+  试听: '#F5729B'
+}
+export const COURSE_TYPE_DEFAULT_COLOR = '#64748b'
+
+export function courseTypeColor(type) {
+  return COURSE_TYPE_COLORS[type] || COURSE_TYPE_DEFAULT_COLOR
+}

@@ -1,14 +1,14 @@
 import { defineStore } from 'pinia'
 
 /**
- * 基础数据缓存：机构 / 学生 / 收费规则，供课程表与各类表单下拉使用。
- * 数据来源优先 IndexedDB 快照，其次接口。
+ * 基础数据缓存：机构 / 学生 / 课程模板，供课程表与各类表单下拉使用。
+ * 数据来源优先 IndexedDB 按资源缓存，其次对应接口。
  */
 export const useMetaStore = defineStore('meta', {
   state: () => ({
     organizations: [],
     students: [],
-    salaryRules: [],
+    courseTemplates: [],
     loaded: false
   }),
   getters: {
@@ -16,11 +16,14 @@ export const useMetaStore = defineStore('meta', {
     studentMap: (state) => Object.fromEntries(state.students.map((s) => [s.id, s]))
   },
   actions: {
-    setSnapshot(data) {
-      if (data.organizations) this.organizations = data.organizations
-      if (data.students) this.students = data.students
-      if (data.salaryRules) this.salaryRules = data.salaryRules
-      this.loaded = true
+    setOrganizations(list) {
+      this.organizations = list || []
+    },
+    setStudents(list) {
+      this.students = list || []
+    },
+    setCourseTemplates(list) {
+      this.courseTemplates = list || []
     }
   }
 })

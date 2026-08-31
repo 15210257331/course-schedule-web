@@ -4,7 +4,7 @@
     <header class="topbar" :class="{ scrolled }">
       <nav class="topbar-inner">
         <!-- 品牌 -->
-        <router-link to="/dashboard" class="brand">
+        <router-link to="/schedule" class="brand">
           <span class="brand-mark">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
               <path
@@ -96,6 +96,7 @@
                 <div class="user-menu-head">
                   <p class="user-menu-name">{{ authStore.user?.nickname || '教师' }}</p>
                   <p class="user-menu-sub">{{ authStore.user?.username || '' }}</p>
+                  <span v-if="userSubject" class="user-tag">主要任教 · {{ userSubject }}</span>
                 </div>
                 <div class="user-menu-body">
                   <router-link :to="{ name: 'profile' }" class="user-menu-item" @click="userMenuOpen = false">
@@ -174,6 +175,8 @@ import { ElMessageBox } from 'element-plus'
 import { User, Setting, SwitchButton } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/store/auth'
 import { notificationApi } from '@/api/notification'
+import { settingApi } from '@/api/setting'
+import { authApi } from '@/api/auth'
 
 const route = useRoute()
 const router = useRouter()
@@ -185,8 +188,7 @@ const navItems = [
   { name: 'courses', title: '课程管理' },
   { name: 'students', title: '学生管理' },
   { name: 'organizations', title: '机构管理' },
-  { name: 'salaryRules', title: '收费规则' },
-  { name: 'income', title: '收入统计' }
+  { name: 'income', title: '收入' }
 ]
 
 function isActive(name) {
@@ -212,6 +214,11 @@ const userMenuOpen = ref(false)
 const userInitial = computed(() =>
   (authStore.user?.nickname || authStore.user?.username || '教').charAt(0).toUpperCase()
 )
+/* 主要任教学科：取 subjects（逗号分隔）第一项 */
+const userSubject = computed(() => {
+  const s = authStore.user?.subjects
+  return s ? s.split(',').map((x) => x.trim()).filter(Boolean)[0] || '' : ''
+})
 function onDocClick(e) {
   if (!e.target.closest('.user-zone')) userMenuOpen.value = false
 }
@@ -243,12 +250,48 @@ async function markAllRead() {
   loadNotifications()
 }
 
+/* 到点提醒轮询：有未读的到期提醒时刷新角标，并（若开启浏览器通知）弹系统通知 */
+let reminderTimer = null
+async function requestNotifyPermission() {
+  if (!('Notification' in window)) return false
+  if (Notification.permission === 'granted') return true
+  if (Notification.permission === 'denied') return false
+  const p = await Notification.requestPermission()
+  return p === 'granted'
+}
+async function pollDueReminders() {
+  try {
+    const due = await notificationApi.due()
+    if (!due || !due.length) return
+    let settings = {}
+    try {
+      settings = await settingApi.list()
+    } catch (e) {
+      /* 忽略 */
+    }
+    const browserNotify = settings.browserNotify === 'true'
+    if (browserNotify && (await requestNotifyPermission())) {
+      for (const n of due) {
+        new Notification(n.title || '课程提醒', { body: n.content })
+        await notificationApi.markRead(n.id)
+      }
+    }
+    loadNotifications()
+  } catch (e) {
+    /* 静默 */
+  }
+}
+
 onMounted(() => {
   loadNotifications()
+  /* 刷新用户资料，保证任教学科标签始终可用（老会话 localStorage 里可能没有 subjects） */
+  authApi.profile().then((u) => u && authStore.setUser({ ...authStore.user, ...u })).catch(() => {})
+  reminderTimer = setInterval(pollDueReminders, 60_000)
   window.addEventListener('scroll', onScroll, { passive: true })
   document.addEventListener('click', onDocClick)
 })
 onBeforeUnmount(() => {
+  if (reminderTimer) clearInterval(reminderTimer)
   window.removeEventListener('scroll', onScroll)
   document.removeEventListener('click', onDocClick)
 })
@@ -346,7 +389,7 @@ onBeforeUnmount(() => {
     }
 
     &.active {
-      color: var(--color-ink);
+      color: var(--color-primary);
       background: var(--color-surface);
     }
   }
@@ -417,7 +460,7 @@ onBeforeUnmount(() => {
   right: 0;
   top: 100%;
   margin-top: 8px;
-  width: 224px;
+  width: 190px;
   background: var(--color-canvas);
   border-radius: 10px;
   border: 1px solid var(--color-border);
@@ -443,6 +486,17 @@ onBeforeUnmount(() => {
       font-size: 12px;
       color: var(--color-muted);
       margin: 2px 0 0;
+    }
+
+    .user-tag {
+      display: inline-block;
+      margin-top: 8px;
+      padding: 2px 8px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--color-primary);
+      background: rgba(99, 91, 255, 0.1);
+      border-radius: 999px;
     }
   }
 
@@ -528,7 +582,7 @@ onBeforeUnmount(() => {
     }
 
     &.active {
-      color: var(--color-ink);
+      color: var(--color-primary);
       background: var(--color-surface);
     }
   }

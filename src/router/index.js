@@ -11,7 +11,7 @@ const routes = [
   {
     path: '/',
     component: () => import('@/layout/MainLayout.vue'),
-    redirect: '/dashboard',
+    redirect: '/schedule',
     children: [
       {
         path: 'dashboard',
@@ -44,16 +44,10 @@ const routes = [
         meta: { title: '机构管理' }
       },
       {
-        path: 'salary-rules',
-        name: 'salaryRules',
-        component: () => import('@/views/salary-rules/index.vue'),
-        meta: { title: '收费规则' }
-      },
-      {
         path: 'income',
         name: 'income',
         component: () => import('@/views/income/index.vue'),
-        meta: { title: '收入统计' }
+        meta: { title: '费用详情' }
       },
       {
         path: 'profile',
@@ -71,7 +65,7 @@ const routes = [
   },
   {
     path: '/:pathMatch(.*)*',
-    redirect: '/dashboard'
+    redirect: '/schedule'
   }
 ]
 
@@ -87,7 +81,7 @@ router.beforeEach((to) => {
     return { name: 'login', query: { redirect: to.fullPath } }
   }
   if (to.meta.public && authStore.isLoggedIn) {
-    return { name: 'dashboard' }
+    return { name: 'schedule' }
   }
   return true
 })

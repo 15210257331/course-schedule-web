@@ -120,7 +120,7 @@ const regRules = {
 function afterLogin(data) {
   authStore.setLogin({ token: data.token, user: data })
   ElMessage.success('欢迎回来')
-  router.push(route.query.redirect || { name: 'dashboard' })
+  router.push(route.query.redirect || { name: 'schedule' })
 }
 
 async function handleLogin() {

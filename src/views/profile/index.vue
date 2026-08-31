@@ -25,6 +25,16 @@
             <el-form-item label="手机号">
               <el-input v-model="form.phone" />
             </el-form-item>
+            <el-form-item label="任教学科">
+              <el-select
+                v-model="form.subject"
+                placeholder="选择您任教的学科"
+                style="width: 100%"
+              >
+                <el-option v-for="s in SUBJECT_OPTIONS" :key="s" :label="s" :value="s" />
+              </el-select>
+              <div class="text-muted field-tip">新建课程模板时科目固定为该学科</div>
+            </el-form-item>
             <el-button type="primary" :loading="saving" @click="saveProfile">保存资料</el-button>
           </el-form>
         </el-card>
@@ -72,7 +82,8 @@ const saving = ref(false)
 const savingPwd = ref(false)
 const pwdRef = ref()
 
-const form = reactive({ nickname: '', avatar: '', email: '', phone: '' })
+const form = reactive({ nickname: '', avatar: '', email: '', phone: '', subject: '' })
+const SUBJECT_OPTIONS = ['语文', '数学', '英语', '物理', '化学', '生物', '历史', '地理', '政治', '道法']
 const pwd = reactive({ oldPassword: '', newPassword: '', confirm: '' })
 const pwdRules = {
   oldPassword: [{ required: true, message: '请输入原密码', trigger: 'blur' }],
@@ -95,12 +106,13 @@ async function loadProfile() {
   form.avatar = user.avatar || ''
   form.email = user.email || ''
   form.phone = user.phone || ''
+  form.subject = user.subjects ? user.subjects.split(',').filter(Boolean)[0] || '' : ''
 }
 
 async function saveProfile() {
   saving.value = true
   try {
-    const user = await authApi.updateProfile({ ...form })
+    const user = await authApi.updateProfile({ ...form, subjects: form.subject })
     authStore.setUser({ ...authStore.user, ...user })
     ElMessage.success('资料已保存')
   } finally {
@@ -138,6 +150,11 @@ onMounted(loadProfile)
     display: flex;
     justify-content: center;
     margin-bottom: 20px;
+  }
+  .field-tip {
+    font-size: 12px;
+    line-height: 1.5;
+    margin-top: 4px;
   }
 }
 </style>

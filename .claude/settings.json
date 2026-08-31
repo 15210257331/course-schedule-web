@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(npm install *)",
+      "Bash(node -e \"console.log\\(require\\('./package.json'\\).dependencies['vue-draggable-plus']\\)\")",
+      "Bash(mvn -q compile -DskipTests)",
+      "Bash(java -version)",
+      "Bash(/usr/libexec/java_home -V)",
+      "Read(//Library/Java/JavaVirtualMachines/**)",
+      "Read(//Users/chenxiaofei/.sdkman/candidates/java/**)",
+      "Read(//opt/homebrew/Cellar/**)",
+      "Bash(mvn -version)",
+      "Bash(export JAVA_HOME=\"$HOME/.sdkman/candidates/java/17\")",
+      "Bash(cd \"/Users/chenxiaofei/Desktop/chenxiaofei/课程表/code/course-schedule-server\")",
+      "Read(//Users/chenxiaofei/.sdkman/candidates/java/21-tem/**)",
+      "Bash(JAVA_HOME=/Users/chenxiaofei/.sdkman/candidates/java/17 mvn -q compile -DskipTests)",
+      "Bash(echo \"EXIT=$?\")",
+      "Read(//Users/chenxiaofei/.sdkman/candidates/java/17/Contents/**)",
+      "Read(//Users/chenxiaofei/.sdkman/candidates/java/21-tem/Contents/Home/bin/**)",
+      "Bash(/Users/chenxiaofei/.sdkman/candidates/java/21-tem/Contents/Home/bin/java -version)",
+      "Read(//Users/chenxiaofei/.sdkman/candidates/java/21-tem/bin/**)",
+      "Bash(/Users/chenxiaofei/.sdkman/candidates/java/21-tem/bin/java -version)",
+      "Bash(JAVA_HOME=/Users/chenxiaofei/.sdkman/candidates/java/21-tem mvn -q compile -DskipTests)",
+      "Bash(echo \"EXIT_CODE=$?\")",
+      "Bash(npm run *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:8080/api/course-templates --max-time 3)"
+    ]
+  }
+}
