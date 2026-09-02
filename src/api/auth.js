@@ -5,5 +5,7 @@ export const authApi = {
   register: (data) => request.post('/auth/register', data),
   profile: () => request.get('/auth/profile'),
   updateProfile: (data) => request.put('/auth/profile', data),
-  updatePassword: (data) => request.put('/auth/password', data)
+  updatePassword: (data) => request.put('/auth/password', data),
+  sendResetCode: (email) => request.post('/auth/reset-code', { email }),
+  resetPassword: (data) => request.post('/auth/reset-password', data)
 }

@@ -73,12 +73,14 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import dayjs from 'dayjs'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { courseApi } from '@/api/course'
 import { templateApi } from '@/api/courseTemplate'
 import { useMetaStore } from '@/store/meta'
-import { loadCourses, loadCourseTemplates, loadStudents, loadOrganizations } from '@/utils/idb'
+import { loadCourses, loadCourseTemplates, loadOrganizations } from '@/utils/idb'
+import { useCache } from '@/composables/useCache'
 import { weekDays, mondayOf, toMinutes, COURSE_COLORS } from '@/utils/date'
 import CourseFormDialog from '@/components/CourseFormDialog.vue'
 import CourseTemplateDialog from '@/components/CourseTemplateDialog.vue'
@@ -88,7 +90,7 @@ import ScheduleCalendar from './components/ScheduleCalendar.vue'
 
 const view = ref('week')
 const anchor = ref(new Date())
-const courses = ref([])
+const route = useRoute()
 const dialogVisible = ref(false)
 const dialogStart = ref('')
 const dialogEnd = ref('')
@@ -97,8 +99,13 @@ const calendarRef = ref()
 
 const metaStore = useMetaStore()
 
+/* 课程 / 模板数据：useCache 组合式（本地缓存 + 响应式 data/loading + 强制刷新） */
+const coursesCache = useCache(loadCourses, [])
+const templatesCache = useCache(loadCourseTemplates, [])
+const courses = computed(() => coursesCache.data.value)
+const templates = computed(() => templatesCache.data.value)
+
 /* 课程模板侧栏 */
-const templates = ref([])
 const tplDialogVisible = ref(false)
 const tplDialogRef = ref()
 
@@ -117,13 +124,9 @@ function orgColor(organizationId, fallbackId) {
   return COURSE_COLORS[(fallbackId || 0) % COURSE_COLORS.length]
 }
 
-/* 给课程补学生姓名（学生表冗余）与机构色，日历卡片直接用 c.studentName / c.color */
+/* 给课程补机构色，日历卡片直接用 c.studentName / c.color */
 const coloredCourses = computed(() =>
-  courses.value.map((c) => {
-    const studentName = c.studentName || (c.studentId != null ? metaStore.studentMap[c.studentId]?.name : null)
-    const withName = studentName && studentName !== c.studentName ? { ...c, studentName } : c
-    return withName.color ? withName : { ...withName, color: orgColor(c.organizationId, c.id) }
-  })
+  courses.value.map((c) => (c.color ? c : { ...c, color: orgColor(c.organizationId, c.id) }))
 )
 
 /* 视图天数与标签 */
@@ -172,7 +175,21 @@ async function reload() {
   const start = rangeStart()
   const end = rangeEnd()
   try {
-    courses.value = await loadCourses(start.format('YYYY-MM-DDTHH:mm:ss'), end.format('YYYY-MM-DDTHH:mm:ss'))
+    await coursesCache.load(start.format('YYYY-MM-DDTHH:mm:ss'), end.format('YYYY-MM-DDTHH:mm:ss'))
+  } catch (e) {
+    /* 忽略 */
+  }
+}
+
+/* 从提醒中心跳转：定位到指定课程所在日期，切日视图并高亮该课程 */
+async function locateCourse(courseId) {
+  try {
+    const c = await courseApi.get(courseId)
+    if (!c || !c.startTime) return
+    view.value = 'day'
+    anchor.value = dayjs(c.startTime).toDate()
+    await reload()
+    calendarRef.value?.locateCourse?.(courseId)
   } catch (e) {
     /* 忽略 */
   }
@@ -180,17 +197,16 @@ async function reload() {
 
 async function reloadTemplates() {
   try {
-    templates.value = await loadCourseTemplates()
+    await templatesCache.load()
     metaStore.setCourseTemplates(templates.value)
   } catch (e) {
     /* 忽略 */
   }
 }
 
-/* 模板表单/课程表单需要学生与机构数据 */
+/* 课程表单需要机构数据 */
 async function ensureMeta() {
   try {
-    if (!metaStore.students.length) metaStore.setStudents(await loadStudents())
     if (!metaStore.organizations.length) metaStore.setOrganizations(await loadOrganizations())
   } catch (e) {
     /* 忽略 */
@@ -344,7 +360,6 @@ async function scheduleTemplate(tpl, date, minute) {
   const end = start.add(tpl.durationMinutes || 60, 'minute')
   const payload = {
     title: tpl.studentName || tpl.title,
-    studentId: tpl.studentId,
     studentName: tpl.studentName,
     organizationId: tpl.organizationId,
     subject: tpl.subject,
@@ -376,21 +391,23 @@ async function scheduleTemplate(tpl, date, minute) {
   }
 }
 
-/* ---------- 已有课程拖拽：改时间/改天（原生 mousemove + 幽灵块，吸附到整格） ---------- */
+/* ---------- 已有课程拖拽：改时间/改天（原生 pointermove + 幽灵块，吸附到整格，兼容触摸） ---------- */
 let dragState = null
 let ghostEl = null
 
 function startDrag(e, c) {
-  if (e.button !== 0) return
+  // 仅响应鼠标左键 / 触摸 / 触控笔按下
+  if (e.pointerType === 'mouse' && e.button !== 0) return
   const blockEl = e.currentTarget
   const src = courses.value.find((x) => x.id === c.id)
   const color = c.color || COURSE_COLORS[0]
   const dur = src ? dayjs(src.endTime).diff(dayjs(src.startTime), 'minute') : 0
-  const gap = calendarRef.value?.BLOCK_GAP ?? 5
   // 卡片矩形 + 光标抓取点偏移：拖动中卡片跟随光标（保持相对位置）
   const rect = blockEl.getBoundingClientRect()
   dragState = {
     cid: c.id,
+    pointerId: e.pointerId,
+    pointerType: e.pointerType,
     startX: e.clientX,
     startY: e.clientY,
     moved: false,
@@ -410,7 +427,7 @@ function startDrag(e, c) {
 
   const onMove = (ev) => {
     const st = dragState
-    if (!st) return
+    if (!st || (ev.pointerId != null && ev.pointerId !== st.pointerId)) return
     if (!st.moved) {
       if (Math.hypot(ev.clientX - st.startX, ev.clientY - st.startY) < 6) return
       // 越过阈值才认为开始拖拽：建跟随幽灵块、原卡片半透明、点亮落点高亮
@@ -446,13 +463,14 @@ function startDrag(e, c) {
     dragState = null
     removeGhost()
     calendarRef.value?.setDragActive?.(false)
-    document.removeEventListener('mousemove', onMove)
-    document.removeEventListener('mouseup', onUp)
+    document.removeEventListener('pointermove', onMove)
+    document.removeEventListener('pointerup', onUp)
+    document.removeEventListener('pointercancel', onCancel)
   }
 
   const onUp = async (ev) => {
     const st = dragState
-    if (!st || !st.moved) {
+    if (!st || (ev.pointerId != null && ev.pointerId !== st.pointerId) || !st.moved) {
       // 单击交互暂时禁用，仅清理拖拽状态
       finish()
       return
@@ -479,8 +497,14 @@ function startDrag(e, c) {
     }
   }
 
-  document.addEventListener('mousemove', onMove)
-  document.addEventListener('mouseup', onUp)
+  const onCancel = () => {
+    // 触摸滚动/系统手势中断：不做落点判定，仅清理拖拽状态
+    finish()
+  }
+
+  document.addEventListener('pointermove', onMove)
+  document.addEventListener('pointerup', onUp)
+  document.addEventListener('pointercancel', onCancel)
 }
 
 /* 把分钟吸附到整格：光标落在哪格就返回哪格（装不下时长或午休格返回 null） */
@@ -560,6 +584,9 @@ onMounted(() => {
   ensureMeta()
   document.addEventListener('mouseleave', cancelDrag)
   window.addEventListener('blur', cancelDrag)
+  /* 来自提醒中心的跳转（?course=<id>） */
+  const cid = Number(route.query.course)
+  if (cid) locateCourse(cid)
 })
 onBeforeUnmount(() => {
   cancelDrag()

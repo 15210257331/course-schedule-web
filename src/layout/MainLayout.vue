@@ -31,6 +31,70 @@
           </router-link>
         </div>
 
+        <div class="search-zone">
+          <div class="search-box">
+            <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" />
+            </svg>
+            <input
+              v-model="searchKeyword"
+              class="search-input"
+              placeholder="搜索课程 / 学生 / 机构"
+              @focus="searchOpen = true"
+              @input="onSearchInput"
+            />
+            <button v-if="searchKeyword" class="search-clear" @click.stop="clearSearch">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <div v-if="searchOpen && searchKeyword" class="search-dropdown" @mousedown.prevent>
+            <div v-if="searching" class="search-tip text-muted">搜索中…</div>
+            <template v-else>
+              <div v-if="!searchResults.length" class="search-tip text-muted">未找到匹配结果</div>
+              <template v-else>
+                <div v-if="searchResults.some((r) => r.kind === 'course')" class="search-group">
+                  <div class="search-group-title">课程</div>
+                  <div
+                    v-for="r in searchResults.filter((x) => x.kind === 'course')"
+                    :key="'c' + r.id"
+                    class="search-item"
+                    @click="goSearch(r)"
+                  >
+                    <span class="si-title">{{ r.title }}</span>
+                    <span class="si-sub">{{ r.studentName }} {{ r.startTime }}</span>
+                  </div>
+                </div>
+                <div v-if="searchResults.some((r) => r.kind === 'student')" class="search-group">
+                  <div class="search-group-title">学生</div>
+                  <div
+                    v-for="r in searchResults.filter((x) => x.kind === 'student')"
+                    :key="'s' + r.id"
+                    class="search-item"
+                    @click="goSearch(r)"
+                  >
+                    <span class="si-title">{{ r.studentName }}</span>
+                    <span class="si-sub">{{ r.subject }} {{ r.stage }}</span>
+                  </div>
+                </div>
+                <div v-if="searchResults.some((r) => r.kind === 'org')" class="search-group">
+                  <div class="search-group-title">机构</div>
+                  <div
+                    v-for="r in searchResults.filter((x) => x.kind === 'org')"
+                    :key="'o' + r.id"
+                    class="search-item"
+                    @click="goSearch(r)"
+                  >
+                    <span class="si-title">{{ r.name }}</span>
+                    <span class="si-sub">{{ r.address }}</span>
+                  </div>
+                </div>
+              </template>
+            </template>
+          </div>
+        </div>
+
         <div class="topbar-right">
           <!-- 主题切换 -->
           <button class="icon-btn" aria-label="切换主题" @click="toggleTheme">
@@ -79,9 +143,15 @@
                 :key="n.id"
                 class="notify-item"
                 :class="{ unread: !n.isRead }"
+                @click="openNotification(n)"
               >
                 <div class="notify-title">{{ n.title }}</div>
                 <div class="text-muted">{{ n.content }}</div>
+                <button class="notify-del" title="删除提醒" @click.stop="removeNotification(n)">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
               </div>
             </div>
           </el-popover>
@@ -177,6 +247,9 @@ import { useAuthStore } from '@/store/auth'
 import { notificationApi } from '@/api/notification'
 import { settingApi } from '@/api/setting'
 import { authApi } from '@/api/auth'
+import { courseApi } from '@/api/course'
+import { templateApi } from '@/api/courseTemplate'
+import { organizationApi } from '@/api/organization'
 
 const route = useRoute()
 const router = useRouter()
@@ -219,9 +292,6 @@ const userSubject = computed(() => {
   const s = authStore.user?.subjects
   return s ? s.split(',').map((x) => x.trim()).filter(Boolean)[0] || '' : ''
 })
-function onDocClick(e) {
-  if (!e.target.closest('.user-zone')) userMenuOpen.value = false
-}
 
 async function handleLogout() {
   userMenuOpen.value = false
@@ -248,6 +318,99 @@ async function loadNotifications() {
 async function markAllRead() {
   await notificationApi.markAllRead()
   loadNotifications()
+}
+
+/* 点击提醒：标记已读并跳转对应课程（课程表日视图） */
+async function openNotification(n) {
+  if (!n.isRead) {
+    try {
+      await notificationApi.markRead(n.id)
+    } catch (e) {
+      /* 忽略 */
+    }
+  }
+  if (n.courseId != null) {
+    router.push({ name: 'schedule', query: { course: n.courseId } })
+  }
+  await loadNotifications()
+}
+
+async function removeNotification(n) {
+  try {
+    await notificationApi.remove(n.id)
+    await loadNotifications()
+  } catch (e) {
+    /* 静默 */
+  }
+}
+
+// ---------- 全局搜索 ----------
+const searchKeyword = ref('')
+const searchOpen = ref(false)
+const searching = ref(false)
+const searchResults = ref([])
+let searchTimer = null
+
+function mergeSearch(courses, templates, orgs) {
+  const out = []
+  ;(courses || []).slice(0, 5).forEach((c) =>
+    out.push({ kind: 'course', id: c.id, title: c.title, studentName: c.studentName, subject: c.subject, startTime: c.startTime })
+  )
+  ;(templates || []).slice(0, 5).forEach((t) =>
+    out.push({ kind: 'student', id: t.id, studentName: t.studentName, subject: t.subject, stage: t.stage })
+  )
+  ;(orgs || []).slice(0, 5).forEach((o) =>
+    out.push({ kind: 'org', id: o.id, name: o.name, address: o.address })
+  )
+  return out
+}
+
+async function doSearch() {
+  const kw = searchKeyword.value.trim()
+  if (!kw) {
+    searchResults.value = []
+    searching.value = false
+    return
+  }
+  searching.value = true
+  try {
+    const [courses, templates, orgs] = await Promise.all([
+      courseApi.page({ pageNum: 1, pageSize: 10, title: kw }).then((r) => r.list || []).catch(() => []),
+      templateApi.list(kw).catch(() => []),
+      organizationApi.list(kw).catch(() => [])
+    ])
+    searchResults.value = mergeSearch(courses, templates, orgs)
+  } finally {
+    searching.value = false
+  }
+}
+
+function onSearchInput() {
+  clearTimeout(searchTimer)
+  searchTimer = setTimeout(doSearch, 300)
+}
+
+function clearSearch() {
+  searchKeyword.value = ''
+  searchResults.value = []
+  searchOpen.value = false
+}
+
+function goSearch(r) {
+  clearSearch()
+  if (r.kind === 'course') {
+    router.push({ name: 'courses', query: { title: r.title } })
+  } else if (r.kind === 'student') {
+    router.push({ name: 'students', query: { keyword: r.studentName } })
+  } else if (r.kind === 'org') {
+    router.push({ name: 'organizations', query: { keyword: r.name } })
+  }
+}
+
+function onDocClick(e) {
+  if (e.target.closest('.user-zone')) return
+  userMenuOpen.value = false
+  if (!e.target.closest('.search-zone')) searchOpen.value = false
 }
 
 /* 到点提醒轮询：有未读的到期提醒时刷新角标，并（若开启浏览器通知）弹系统通知 */
@@ -395,11 +558,144 @@ onBeforeUnmount(() => {
   }
 }
 
+.search-zone {
+  position: relative;
+  flex: 1;
+  max-width: 320px;
+  margin-left: auto;
+}
+
+.search-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+
+  .search-icon {
+    position: absolute;
+    left: 10px;
+    width: 15px;
+    height: 15px;
+    color: var(--color-muted);
+    pointer-events: none;
+  }
+
+  .search-input {
+    width: 100%;
+    height: 32px;
+    padding: 0 28px 0 32px;
+    font-size: 13px;
+    color: var(--color-ink);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+
+    &::placeholder {
+      color: var(--color-muted);
+    }
+
+    &:focus {
+      border-color: var(--color-primary);
+      box-shadow: 0 0 0 2px rgba(99, 91, 255, 0.12);
+    }
+  }
+
+  .search-clear {
+    position: absolute;
+    right: 6px;
+    width: 20px;
+    height: 20px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    color: var(--color-muted);
+    cursor: pointer;
+    border-radius: 4px;
+
+    svg {
+      width: 13px;
+      height: 13px;
+    }
+
+    &:hover {
+      color: var(--color-ink);
+      background: var(--color-surface);
+    }
+  }
+}
+
+.search-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  max-height: 384px;
+  overflow-y: auto;
+  background: var(--color-canvas);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  padding: 4px 0;
+  z-index: 60;
+
+  .search-tip {
+    padding: 10px 14px;
+    font-size: 13px;
+  }
+
+  .search-group {
+    padding: 4px 0;
+  }
+
+  .search-group-title {
+    padding: 6px 14px 4px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--color-muted);
+    text-transform: uppercase;
+  }
+
+  .search-item {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 7px 14px;
+    cursor: pointer;
+    transition: background 0.12s ease;
+
+    &:hover {
+      background: var(--color-surface);
+    }
+
+    .si-title {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--color-ink);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .si-sub {
+      font-size: 12px;
+      color: var(--color-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      flex: 1;
+      text-align: right;
+    }
+  }
+}
+
 .topbar-right {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-left: auto;
 }
 
 .icon-btn {
@@ -634,8 +930,16 @@ onBeforeUnmount(() => {
 // 提醒面板（popper 挂载在 body，需非 scoped）
 .notify-popper {
   .notify-item {
-    padding: 8px 0;
+    position: relative;
+    padding: 8px 24px 8px 0;
     border-bottom: 1px solid var(--color-border);
+    cursor: pointer;
+
+    &:hover {
+      .notify-title {
+        color: var(--color-primary);
+      }
+    }
 
     &:last-child {
       border-bottom: none;
@@ -644,10 +948,43 @@ onBeforeUnmount(() => {
     .notify-title {
       font-size: 14px;
       color: var(--color-ink);
+      transition: color 0.15s ease;
     }
 
     &.unread .notify-title {
       font-weight: 600;
+    }
+
+    .notify-del {
+      position: absolute;
+      right: 0;
+      top: 6px;
+      width: 20px;
+      height: 20px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: none;
+      background: transparent;
+      color: var(--color-muted);
+      cursor: pointer;
+      border-radius: 4px;
+      opacity: 0;
+      transition: opacity 0.15s ease, color 0.15s ease, background 0.15s ease;
+
+      svg {
+        width: 14px;
+        height: 14px;
+      }
+
+      &:hover {
+        color: var(--color-danger);
+        background: rgba(223, 27, 65, 0.08);
+      }
+    }
+
+    &:hover .notify-del {
+      opacity: 1;
     }
   }
 }

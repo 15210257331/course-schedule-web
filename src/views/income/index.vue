@@ -19,6 +19,7 @@
           placeholder="选择月份"
           @change="loadReport"
         />
+        <el-button :icon="Download" :disabled="!rows.length" @click="exportCsv">导出</el-button>
       </div>
     </div>
 
@@ -57,6 +58,7 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import { Download } from '@element-plus/icons-vue'
 import { dashboardApi } from '@/api/dashboard'
 import { formatMoney, dayjs } from '@/utils/date'
 
@@ -99,6 +101,41 @@ async function loadReport() {
   const end = m.endOf('month').format('YYYY-MM-DD')
   const r = await dashboardApi.incomeReportRange(start, end)
   rows.value = (dimension.value === 'organization' ? r.organizationFeeDetail : r.studentFeeDetail) || []
+}
+
+/* 导出当前维度明细为 CSV（Excel 兼容，带 BOM 与转义） */
+function csvCell(v) {
+  const s = String(v ?? '')
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+}
+
+function exportCsv() {
+  const isOrg = dimension.value === 'organization'
+  const head = ['排名', '名称', isOrg ? '学生' : '机构', '课程数', '单价(元)', '费用(元)']
+  const lines = [head.join(',')]
+  rows.value.forEach((r, i) => {
+    const cnt = Number(r.courseCount) || 0
+    const fee = Number(r.fee) || 0
+    const unit = cnt ? (fee / cnt).toFixed(2) : '0.00'
+    lines.push(
+      [
+        i + 1,
+        r.name || '未分类',
+        isOrg ? (r.studentNames || '') : (r.organizationName || ''),
+        cnt,
+        unit,
+        fee.toFixed(2)
+      ].map(csvCell).join(',')
+    )
+  })
+  const label = isOrg ? '机构' : '学生'
+  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `费用明细-${month.value}-${label}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 onMounted(() => {

@@ -1,15 +1,32 @@
 /**
  * IndexedDB 本地缓存封装：按资源分别缓存业务数据，实现「首次拉取，之后本地极速加载」。
- * 资源拆分：courses（按时间范围）/ students / organizations / courseTemplates 独立存取。
+ * 资源拆分：courses（按时间范围）/ organizations / courseTemplates 独立存取。
  *
- * 当前已通过 CACHE_ENABLED 整体禁用：所有 load* 直接走接口，idb 为 no-op。
- * 如需恢复缓存，把 CACHE_ENABLED 改为 true 即可。
+ * 当前已通过全局设置控制开关：所有 load* 优先走本地缓存，过期或缺失时回源接口。
+ * 开关由 localCacheEnabled() 读取 localStorage 的 'teac_idb_cache'（默认开启），可在系统设置中切换。
  */
 const DB_NAME = 'teac_os'
 const DB_VERSION = 2
 const STORE = 'resources'
 const CACHE_TTL = 5 * 60 * 1000
-const CACHE_ENABLED = false
+const CACHE_KEY = 'teac_idb_cache'
+
+/** 本地缓存开关：默认开启，可在系统设置中关闭 */
+export function localCacheEnabled() {
+  try {
+    return localStorage.getItem(CACHE_KEY) !== 'false'
+  } catch (e) {
+    return true
+  }
+}
+
+export function setLocalCacheEnabled(enabled) {
+  try {
+    localStorage.setItem(CACHE_KEY, enabled ? 'true' : 'false')
+  } catch (e) {
+    /* ignore */
+  }
+}
 
 let dbPromise = null
 
@@ -39,7 +56,7 @@ function isFresh(record) {
 
 export const idb = {
   async save(key, data) {
-    if (!CACHE_ENABLED) return false
+    if (!localCacheEnabled()) return false
     const db = await openDB()
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE, 'readwrite')
@@ -49,7 +66,7 @@ export const idb = {
     })
   },
   async load(key) {
-    if (!CACHE_ENABLED) return null
+    if (!localCacheEnabled()) return null
     const db = await openDB()
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE, 'readonly')
@@ -62,7 +79,7 @@ export const idb = {
     })
   },
   async clear(key) {
-    if (!CACHE_ENABLED) return false
+    if (!localCacheEnabled()) return false
     const db = await openDB()
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE, 'readwrite')
@@ -86,19 +103,6 @@ export async function loadCourses(start, end, title, force = false) {
   }
   const { courseApi } = await import('@/api/course')
   const fresh = await courseApi.list(start, end, title)
-  await idb.save(key, fresh)
-  return fresh
-}
-
-/** 学生列表 */
-export async function loadStudents(force = false) {
-  const key = 'students'
-  if (!force) {
-    const cached = await idb.load(key)
-    if (cached) return cached
-  }
-  const { studentApi } = await import('@/api/student')
-  const fresh = await studentApi.list()
   await idb.save(key, fresh)
   return fresh
 }

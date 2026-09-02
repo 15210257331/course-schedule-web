@@ -140,7 +140,6 @@ const subjectOptions = computed(() => {
 
 const form = reactive({
   id: null,
-  studentId: null,
   studentName: '',
   organizationId: null,
   subject: '语文',
@@ -205,7 +204,6 @@ watch(
 function initForm() {
   Object.assign(form, {
     id: null,
-    studentId: null,
     studentName: '',
     organizationId: null,
     subject: '语文',
@@ -229,7 +227,6 @@ async function submit() {
   const feeValue = form.fee === '' || form.fee == null ? null : form.fee
   const payload = {
     title,
-    studentId: form.studentId,
     studentName: form.studentName,
     organizationId: form.organizationId,
     subject: form.subject,
@@ -262,7 +259,6 @@ function openForEdit(course) {
   editing = true
   Object.assign(form, {
     id: course.id,
-    studentId: course.studentId,
     studentName: course.studentName || '',
     organizationId: course.organizationId,
     subject: course.subject,

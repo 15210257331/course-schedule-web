@@ -39,6 +39,7 @@
 
 <script setup>
 import { onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { Search } from '@element-plus/icons-vue'
 import { templateApi } from '@/api/courseTemplate'
 import StudentTable from './components/StudentTable.vue'
@@ -48,6 +49,7 @@ const list = ref([])
 const total = ref(0)
 const loading = ref(false)
 const keyword = ref('')
+const route = useRoute()
 
 const page = ref(1)
 const pageSize = ref(20)
@@ -77,7 +79,11 @@ function onSizeChange() {
   fetchData()
 }
 
-onMounted(load)
+onMounted(() => {
+  /* 来自全局搜索的跳转关键字 */
+  if (route.query.keyword) keyword.value = String(route.query.keyword)
+  load()
+})
 </script>
 
 <style lang="scss" scoped>

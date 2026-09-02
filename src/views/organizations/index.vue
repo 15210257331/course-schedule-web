@@ -42,6 +42,7 @@
 
 <script setup>
 import { onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search } from '@element-plus/icons-vue'
 import { organizationApi } from '@/api/organization'
@@ -57,6 +58,7 @@ const loading = ref(false)
 const keyword = ref('')
 const dialogVisible = ref(false)
 const dialogRef = ref()
+const route = useRoute()
 
 const page = ref(1)
 const pageSize = ref(20)
@@ -103,7 +105,11 @@ async function remove(row) {
   load()
 }
 
-onMounted(load)
+onMounted(() => {
+  /* 来自全局搜索的跳转关键字 */
+  if (route.query.keyword) keyword.value = String(route.query.keyword)
+  load()
+})
 </script>
 
 <style lang="scss" scoped>

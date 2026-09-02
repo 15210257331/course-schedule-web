@@ -32,8 +32,10 @@
                     <el-form-item label="课程类型" prop="courseType">
                         <el-select v-model="form.courseType" placeholder="类型" style="width: 100%">
                             <el-option label="一对一" value="一对一" />
-                            <el-option label="班课" value="班课" />
-                            <el-option label="家教" value="家教" />
+                            <el-option label="小班课" value="小班课" />
+                            <el-option label="大班课" value="大班课" />
+                            <el-option label="家教版" value="家教版" />
+                            <el-option label="试听" value="试听" />
                         </el-select>
                     </el-form-item>
                 </el-col>
@@ -68,8 +70,9 @@
                     <el-radio-button value="">不重复</el-radio-button>
                     <el-radio-button value="daily">每天</el-radio-button>
                     <el-radio-button value="weekly">每周</el-radio-button>
+                    <el-radio-button value="biweekly">每两周</el-radio-button>
                 </el-radio-group>
-                <el-tooltip content="每天：拖入日历后从当天起，每天该时段都排课，直到本月底。每周：拖入日历后从当天起，每周该时段都排课，直到本月末。" placement="top">
+                <el-tooltip content="每天：拖入日历后从当天起，每天该时段都排课，直到本月底。每周/每两周：拖入日历后从当天起，每隔一周该时段都排课，直到本月末。" placement="top">
                     <el-icon class="tip-icon" style="margin-left: 8px"><QuestionFilled /></el-icon>
                 </el-tooltip>
             </el-form-item>
@@ -134,7 +137,6 @@
     const defaults = () => ({
         id: null,
         title: "",
-        studentId: null,
         studentName: "",
         organizationId: null,
         stage: "高一",
@@ -230,7 +232,6 @@
         Object.assign(form, {
             id: tpl.id,
             title: tpl.title,
-            studentId: tpl.studentId ?? null,
             studentName: tpl.studentName || "",
             organizationId: tpl.organizationId ?? null,
             stage: tpl.stage || "高一",

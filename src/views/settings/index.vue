@@ -23,6 +23,10 @@
             <el-option label="月视图" value="month" />
           </el-select>
         </el-form-item>
+        <el-form-item label="本地缓存">
+          <el-switch v-model="form.idbCache" />
+          <span class="text-muted ml-8">开启后首次拉取、之后本地极速加载</span>
+        </el-form-item>
         <el-button type="primary" :loading="saving" @click="save">保存设置</el-button>
       </el-form>
     </el-card>
@@ -33,6 +37,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { settingApi } from '@/api/setting'
+import { localCacheEnabled, setLocalCacheEnabled } from '@/utils/idb'
 
 const saving = ref(false)
 const form = reactive({
@@ -40,7 +45,8 @@ const form = reactive({
   reminderOffset: 30,
   defaultFee: 300,
   browserNotify: false,
-  defaultView: 'week'
+  defaultView: 'week',
+  idbCache: true
 })
 
 async function load() {
@@ -50,6 +56,7 @@ async function load() {
   form.defaultFee = Number(map.defaultFee || 300)
   form.browserNotify = map.browserNotify === 'true'
   form.defaultView = map.defaultView || 'week'
+  form.idbCache = map.idbCache === 'true' || localCacheEnabled()
 }
 
 async function save() {
@@ -60,8 +67,10 @@ async function save() {
       reminderOffset: String(form.reminderOffset),
       defaultFee: String(form.defaultFee),
       browserNotify: String(form.browserNotify),
-      defaultView: form.defaultView
+      defaultView: form.defaultView,
+      idbCache: String(form.idbCache)
     })
+    setLocalCacheEnabled(form.idbCache)
     ElMessage.success('设置已保存')
   } finally {
     saving.value = false

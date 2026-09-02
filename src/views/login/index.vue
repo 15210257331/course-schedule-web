@@ -35,6 +35,9 @@
             <el-button type="primary" size="large" class="submit" :loading="loading" @click="handleLogin">
               登 录
             </el-button>
+            <div class="forgot-row">
+              <el-button link type="primary" @click="openReset">忘记密码？</el-button>
+            </div>
           </el-form>
         </el-tab-pane>
 
@@ -45,6 +48,9 @@
             </el-form-item>
             <el-form-item prop="nickname">
               <el-input v-model="regForm.nickname" placeholder="昵称（可选）" size="large" :prefix-icon="UserFilled" />
+            </el-form-item>
+            <el-form-item prop="email">
+              <el-input v-model="regForm.email" placeholder="邮箱（必填，用于找回密码）" size="large" :prefix-icon="Message" />
             </el-form-item>
             <el-form-item prop="password">
               <el-input
@@ -75,6 +81,33 @@
     </div>
 
     <p class="footer-text">高效管理你的每一节课</p>
+
+    <!-- 忘记密码弹窗 -->
+    <el-dialog v-model="resetVisible" title="重置密码" width="420px" @closed="initReset">
+      <el-form ref="resetRef" :model="resetForm" :rules="resetRules" label-width="80px">
+        <el-form-item label="邮箱" prop="email">
+          <el-input v-model="resetForm.email" placeholder="注册时填写的邮箱" />
+        </el-form-item>
+        <el-form-item label="验证码" prop="code">
+          <div class="captcha-row">
+            <el-input v-model="resetForm.code" placeholder="6 位验证码" maxlength="6" />
+            <el-button :disabled="countdown > 0" @click="sendCode">
+              {{ countdown > 0 ? `${countdown}s` : '发送验证码' }}
+            </el-button>
+          </div>
+        </el-form-item>
+        <el-form-item label="新密码" prop="newPassword">
+          <el-input v-model="resetForm.newPassword" type="password" show-password placeholder="至少 6 位" />
+        </el-form-item>
+        <el-form-item label="确认密码" prop="confirm">
+          <el-input v-model="resetForm.confirm" type="password" show-password placeholder="再次输入新密码" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="resetVisible = false">取消</el-button>
+        <el-button type="primary" :loading="resetLoading" @click="submitReset">重置密码</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -82,7 +115,7 @@
 import { reactive, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { User, Lock, UserFilled } from '@element-plus/icons-vue'
+import { User, Lock, UserFilled, Message } from '@element-plus/icons-vue'
 import { authApi } from '@/api/auth'
 import { useAuthStore } from '@/store/auth'
 
@@ -96,7 +129,7 @@ const loginRef = ref()
 const regRef = ref()
 
 const loginForm = reactive({ username: '', password: '' })
-const regForm = reactive({ username: '', nickname: '', password: '', confirm: '' })
+const regForm = reactive({ username: '', nickname: '', email: '', password: '', confirm: '' })
 
 const loginRules = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
@@ -104,6 +137,10 @@ const loginRules = {
 }
 const regRules = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
+  email: [
+    { required: true, message: '请输入邮箱', trigger: 'blur' },
+    { type: 'email', message: '邮箱格式不正确', trigger: 'blur' }
+  ],
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' },
     { min: 6, message: '密码至少 6 位', trigger: 'blur' }
@@ -141,11 +178,81 @@ async function handleRegister() {
     const data = await authApi.register({
       username: regForm.username,
       nickname: regForm.nickname,
+      email: regForm.email,
       password: regForm.password
     })
     afterLogin(data)
   } finally {
     loading.value = false
+  }
+}
+
+// ---------- 忘记密码 ----------
+const resetVisible = ref(false)
+const resetLoading = ref(false)
+const resetRef = ref()
+const countdown = ref(0)
+let countdownTimer = null
+const resetForm = reactive({ email: '', code: '', newPassword: '', confirm: '' })
+const resetRules = {
+  email: [
+    { required: true, message: '请输入邮箱', trigger: 'blur' },
+    { type: 'email', message: '邮箱格式不正确', trigger: 'blur' }
+  ],
+  code: [{ required: true, message: '请输入验证码', trigger: 'blur' }],
+  newPassword: [
+    { required: true, message: '请输入新密码', trigger: 'blur' },
+    { min: 6, message: '密码至少 6 位', trigger: 'blur' }
+  ],
+  confirm: [
+    { required: true, message: '请确认密码', trigger: 'blur' },
+    {
+      validator: (_, v, cb) => (v === resetForm.newPassword ? cb() : cb(new Error('两次密码不一致'))),
+      trigger: 'blur'
+    }
+  ]
+}
+
+function openReset() {
+  resetVisible.value = true
+}
+
+function initReset() {
+  if (countdownTimer) clearInterval(countdownTimer)
+  countdown.value = 0
+  resetForm.email = ''
+  resetForm.code = ''
+  resetForm.newPassword = ''
+  resetForm.confirm = ''
+}
+
+async function sendCode() {
+  if (!resetForm.email) {
+    ElMessage.warning('请先输入邮箱')
+    return
+  }
+  await authApi.sendResetCode(resetForm.email)
+  ElMessage.success('验证码已发送，请查收')
+  countdown.value = 60
+  countdownTimer = setInterval(() => {
+    countdown.value--
+    if (countdown.value <= 0) clearInterval(countdownTimer)
+  }, 1000)
+}
+
+async function submitReset() {
+  await resetRef.value.validate()
+  resetLoading.value = true
+  try {
+    await authApi.resetPassword({
+      email: resetForm.email,
+      code: resetForm.code,
+      newPassword: resetForm.newPassword
+    })
+    ElMessage.success('密码已重置，请用新密码登录')
+    resetVisible.value = false
+  } finally {
+    resetLoading.value = false
   }
 }
 </script>
@@ -222,6 +329,22 @@ async function handleRegister() {
 .submit {
   width: 100%;
   margin-top: 4px;
+}
+
+.forgot-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.captcha-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+
+  .el-input {
+    flex: 1;
+  }
 }
 
 .footer-text {

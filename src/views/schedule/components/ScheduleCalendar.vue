@@ -69,9 +69,10 @@
               v-for="c in coursesOf(d.date)"
               :key="c.id"
               class="course-block"
-              :class="blockClass(c)"
+              :class="[blockClass(c), { highlighted: c.id === highlightedId }]"
               :style="blockStyle(c)"
-              @mousedown="emit('courseDrag', $event, c, di)"
+              :data-cid="c.id"
+              @pointerdown="emit('courseDrag', $event, c, di)"
               @click.stop
               @dblclick.stop="emit('courseDblclick', c)"
             >
@@ -135,10 +136,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import dayjs from 'dayjs'
 import { VueDraggable } from 'vue-draggable-plus'
-import { toMinutes, durationText, COURSE_COLORS, courseTypeColor } from '@/utils/date'
-import { useMetaStore } from '@/store/meta'
-
-const metaStore = useMetaStore()
+import { toMinutes, COURSE_COLORS, courseTypeColor } from '@/utils/date'
 
 const props = defineProps({
   view: { type: String, default: 'week' },
@@ -183,6 +181,15 @@ function slotCellStyle(s) {
 }
 
 const gridRef = ref()
+const highlightedId = ref(null)
+
+/* 定位并高亮某个课程（提醒中心跳转）：切到该课程后高亮 + 滚动到可视区 */
+function locateCourse(id) {
+  highlightedId.value = id
+  const el = gridRef.value?.querySelector(`.course-block[data-cid="${id}"]`)
+  if (el) el.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  setTimeout(() => (highlightedId.value = null), 3000)
+}
 
 /* 左上角：本年第几周（ISO 周，周一起算） */
 const weekNoText = computed(() => {
@@ -274,17 +281,9 @@ function timeTextOf(c) {
   return timeOf(c)
 }
 
-/* 卡片标题：学生姓名 · 阶段，优先取学生表（grade），都没有回退课程标题 */
+/* 卡片标题：学生姓名 · 阶段，都没有回退课程标题 */
 function blockTitle(c) {
-  const name = c.studentName || (c.studentId != null ? metaStore.studentMap[c.studentId]?.name : null)
-  const stage = c.stage || (c.studentId != null ? metaStore.studentMap[c.studentId]?.grade : null)
-  return [name, stage].filter(Boolean).join(' · ') || c.title
-}
-
-/* 课程时长文本（分钟差） */
-function durationTextOf(c) {
-  const mins = toMinutes(c.endTime) - toMinutes(c.startTime)
-  return mins > 0 ? durationText(mins) : ''
+  return [c.studentName, c.stage].filter(Boolean).join(' · ') || c.title
 }
 
 function topOffset(c) {
@@ -335,6 +334,7 @@ defineExpose({
   HOUR_MAX,
   PX_PER_MIN,
   BLOCK_GAP,
+  locateCourse,
   setHoverSlot(col, hour) {
     hoverSlot.value = col == null || hour == null ? null : { col, hour }
   },
@@ -519,6 +519,7 @@ defineExpose({
       box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
       transition: transform 0.12s ease, box-shadow 0.12s ease;
       user-select: none;
+      touch-action: none;
       &:hover {
         transform: translateY(-1px);
         box-shadow: 0 4px 12px rgba(15, 23, 42, 0.14);
@@ -580,7 +581,22 @@ defineExpose({
           display: none;
         }
       }
+      /* 提醒跳转高亮：短暂描边脉冲提示用户关注 */
+      &.highlighted {
+        animation: cb-highlight 0.6s ease 3;
+        box-shadow: 0 0 0 2px var(--color-primary);
+      }
     }
+  }
+}
+
+@keyframes cb-highlight {
+  0%,
+  100% {
+    box-shadow: 0 0 0 2px var(--color-primary);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(99, 91, 255, 0.25);
   }
 }
 .month-grid {

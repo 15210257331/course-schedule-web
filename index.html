@@ -5,6 +5,10 @@
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>TeacherOS · 兼职教师工作台</title>
+    <!-- 百度地图 JS API 必须同步加载：其内部依赖 document.write 引入真正的 BMap 脚本，
+         运行时动态注入会导致 document.write 被忽略、window.BMap 永远未定义。
+         AK 经 Vite 从 .env 的 VITE_BAIDU_AK 注入（%VAR% 为 Vite 的 HTML env 替换语法）。 -->
+    <script src="https://api.map.baidu.com/api?v=3.0&ak=%VITE_BAIDU_AK%"></script>
     <!-- 防闪烁：在 CSS 加载前同步设置 dark class -->
     <script>
       ;(function () {
