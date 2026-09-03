@@ -610,7 +610,7 @@ onBeforeUnmount(() => {
   flex-direction: column;
 
   .page-title {
-    margin: 0 0 16px;
+    margin: 0 0 20px;
     font-size: 20px;
     font-weight: 700;
     color: var(--color-ink);

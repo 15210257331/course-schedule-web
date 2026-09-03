@@ -39,10 +39,8 @@
           <el-form-item label="课程类型" prop="courseType">
             <el-select v-model="form.courseType" placeholder="类型" style="width: 100%">
               <el-option label="一对一" value="一对一" />
-              <el-option label="小班课" value="小班课" />
-              <el-option label="大班课" value="大班课" />
-              <el-option label="家教版" value="家教版" />
-              <el-option label="试听" value="试听" />
+              <el-option label="家教" value="家教" />
+              <el-option label="班课" value="班课" />
             </el-select>
           </el-form-item>
         </el-col>
@@ -113,6 +111,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { courseApi } from '@/api/course'
 import { authApi } from '@/api/auth'
+import { settingApi } from '@/api/setting'
 import { useAuthStore } from '@/store/auth'
 import { useMetaStore } from '@/store/meta'
 
@@ -127,6 +126,17 @@ const metaStore = useMetaStore()
 const authStore = useAuthStore()
 const formRef = ref()
 const saving = ref(false)
+const defaultFee = ref(300)
+
+/* 加载系统设置的默认课时费 */
+async function loadSettings() {
+  try {
+    const map = await settingApi.list()
+    defaultFee.value = Number(map.defaultFee || 300)
+  } catch (e) {
+    /* 使用默认值 */
+  }
+}
 
 /* 编辑回显标识：openForEdit 回显后，visible 监听里的 initForm 不应再覆盖回显数据 */
 let editing = false
@@ -147,7 +157,7 @@ const form = reactive({
   courseType: '',
   startTime: '',
   endTime: '',
-  fee: null,
+  fee: defaultFee.value,
   location: '',
   note: '',
   status: 'scheduled',
@@ -174,6 +184,8 @@ watch(
   () => props.visible,
   async (v) => {
     if (!v) return
+    /* 每次打开都重新拉取默认课时费，保证设置修改后生效 */
+    await loadSettings()
     if (authStore.user?.subjects == null) {
       try {
         const user = await authApi.profile()
@@ -211,7 +223,7 @@ function initForm() {
     courseType: '',
     startTime: props.defaultStart || '',
     endTime: props.defaultEnd || '',
-    fee: null,
+    fee: defaultFee.value,
     location: '',
     note: '',
     status: 'scheduled',
@@ -266,7 +278,7 @@ function openForEdit(course) {
     courseType: course.courseType,
     startTime: course.startTime,
     endTime: course.endTime,
-    fee: course.fee != null ? Number(course.fee) : null,
+    fee: course.fee != null ? Number(course.fee) : defaultFee.value,
     location: course.location,
     note: course.note,
     status: course.status || 'scheduled',

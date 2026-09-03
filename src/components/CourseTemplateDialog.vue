@@ -32,10 +32,8 @@
                     <el-form-item label="课程类型" prop="courseType">
                         <el-select v-model="form.courseType" placeholder="类型" style="width: 100%">
                             <el-option label="一对一" value="一对一" />
-                            <el-option label="小班课" value="小班课" />
-                            <el-option label="大班课" value="大班课" />
-                            <el-option label="家教版" value="家教版" />
-                            <el-option label="试听" value="试听" />
+                            <el-option label="家教" value="家教" />
+                            <el-option label="班课" value="班课" />
                         </el-select>
                     </el-form-item>
                 </el-col>
@@ -57,7 +55,7 @@
                             <el-input v-model.number="form.durationMinutes" type="number" min="15" max="480" step="15">
                                 <template #append>分钟</template>
                             </el-input>
-                            <el-tooltip content="拖入日历后按此时长排课，默认 120 分钟" placement="top">
+                            <el-tooltip :content="`拖入日历后按此时长排课，默认 ${defaultDuration} 分钟`" placement="top">
                                 <el-icon class="tip-icon"><QuestionFilled /></el-icon>
                             </el-tooltip>
                         </div>
@@ -109,6 +107,7 @@
     import { QuestionFilled } from "@element-plus/icons-vue"
     import { templateApi } from "@/api/courseTemplate"
     import { authApi } from "@/api/auth"
+    import { settingApi } from "@/api/setting"
     import { useAuthStore } from "@/store/auth"
     import { useMetaStore } from "@/store/meta"
 
@@ -121,6 +120,19 @@
     const authStore = useAuthStore()
     const formRef = ref()
     const saving = ref(false)
+    const defaultDuration = ref(120)
+    const defaultFee = ref(300)
+
+    /* 加载系统设置的默认课程时长和默认课时费 */
+    async function loadSettings() {
+        try {
+            const map = await settingApi.list()
+            defaultDuration.value = Number(map.defaultDuration || 120)
+            defaultFee.value = Number(map.defaultFee || 300)
+        } catch (e) {
+            /* 使用默认值 */
+        }
+    }
 
     /* 科目选项 = 当前用户（老师）的任教学科；未维护时为空并提示去个人中心设置 */
     const subjectOptions = computed(() => {
@@ -142,8 +154,8 @@
         stage: "高一",
         subject: subjectOptions.value[0] || "",
         courseType: "一对一",
-        durationMinutes: 120,
-        fee: null,
+        durationMinutes: defaultDuration.value,
+        fee: defaultFee.value,
         location: "",
         note: "",
         color: null,
@@ -166,6 +178,8 @@
         () => props.visible,
         async v => {
             if (!v) return
+            /* 每次打开都重新拉取默认时长和课时费，保证设置修改后生效 */
+            await loadSettings()
             if (authStore.user?.subjects == null) {
                 try {
                     const user = await authApi.profile()
@@ -237,8 +251,8 @@
             stage: tpl.stage || "高一",
             subject: tpl.subject || "",
             courseType: tpl.courseType || "一对一",
-            durationMinutes: tpl.durationMinutes ?? 120,
-            fee: tpl.fee != null ? Number(tpl.fee) : null,
+            durationMinutes: tpl.durationMinutes ?? defaultDuration.value,
+            fee: tpl.fee != null ? Number(tpl.fee) : defaultFee.value,
             location: tpl.location || "",
             note: tpl.note || "",
             color: tpl.color || null,

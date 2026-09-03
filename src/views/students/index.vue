@@ -15,7 +15,7 @@
             @clear="load"
           />
           <el-button type="primary" :icon="Search" @click="load">查询</el-button>
-          <span class="text-muted search-count">共 {{ total }} 名学生</span>
+          <!-- <span class="text-muted search-count">共 {{ total }} 名学生</span> -->
         </div>
       </div>
 

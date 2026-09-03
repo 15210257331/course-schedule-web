@@ -112,7 +112,8 @@
               @add="emit('templateDropMonth', $event, cell.date)"
               @click.stop
             />
-            <div class="month-day">{{ cell.day }}</div>
+            <div class="month-day">{{ cell.label }}</div>
+            <div v-if="coursesOf(cell.date).length" class="month-count">{{ coursesOf(cell.date).length }} 节</div>
             <div
               v-for="c in coursesOf(cell.date).slice(0, 3)"
               :key="c.id"
@@ -249,7 +250,12 @@ const monthCells = computed(() => {
   const ref = props.days[20]?.date ? dayjs(props.days[20].date) : start.add(20, 'day')
   return Array.from({ length: 42 }, (_, i) => {
     const d = start.add(i, 'day')
-    return { date: d.format('YYYY-MM-DD'), day: d.date(), inMonth: d.month() === ref.month() }
+    return {
+      date: d.format('YYYY-MM-DD'),
+      day: d.date(),
+      label: `${d.month() + 1}月${d.date()}日`,
+      inMonth: d.month() === ref.month()
+    }
   })
 })
 
@@ -649,6 +655,21 @@ defineExpose({
       font-size: 13px;
       margin-bottom: 4px;
       color: var(--color-ink);
+      pointer-events: none;
+    }
+    .month-count {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      z-index: 2;
+      font-size: 11px;
+      font-weight: 600;
+      line-height: 1.5;
+      padding: 0 8px;
+      color: var(--color-primary);
+      background: rgba(99, 91, 255, 0.1);
+      border-radius: 999px;
+      font-variant-numeric: tabular-nums;
       pointer-events: none;
     }
     .month-event {

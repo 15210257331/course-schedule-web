@@ -8,8 +8,8 @@
       </div>
       <div class="fee-head-controls">
         <el-radio-group v-model="dimension" @change="loadReport">
-          <el-radio-button value="student">学生</el-radio-button>
           <el-radio-button value="organization">机构</el-radio-button>
+          <el-radio-button value="student">学生</el-radio-button>
         </el-radio-group>
         <el-date-picker
           v-model="month"
@@ -25,15 +25,21 @@
 
     <!-- 汇总 -->
     <div class="fee-total card">
-      <span class="text-muted">{{ monthLabel }} · 共 {{ rows.length }}{{ dimUnit }} · {{ totalCourses }} 节</span>
-      <span class="fee-total-value">¥{{ formatMoney(totalFee) }}</span>
+      <span class="text-muted">{{ monthLabel }} · 共 {{ rows.length }}{{ dimUnit }} · {{ totalCourses }} 节课</span>
+      <div class="fee-total-right">
+        <template v-if="dimension === 'organization'">
+          <span class="settle-chip settle-chip--done">已结清 ¥{{ formatMoney(settledFee) }}</span>
+          <span class="settle-chip settle-chip--due">未结清 ¥{{ formatMoney(unsettledFee) }}</span>
+        </template>
+        <span class="fee-total-value">¥{{ formatMoney(totalFee) }}</span>
+      </div>
     </div>
 
     <!-- 明细卡片列表 -->
     <div class="card">
       <div class="card-head">
         <h3 class="card-title">明细列表</h3>
-        <span class="text-muted">按费用降序</span>
+        <span class="text-muted">{{ dimension === 'student' ? '同机构归组，组内按费用降序' : '按费用降序' }}</span>
       </div>
       <div v-if="rows.length" class="fee-list">
         <div v-for="(r, i) in rows" :key="i" class="fee-item">
@@ -41,9 +47,18 @@
             <span class="fee-rank">{{ i + 1 }}</span>
             <span class="fee-name">
               <span class="fee-name-text">{{ r.name || '未分类' }}</span>
-              <span v-if="subText(r)" class="fee-sub">{{ subText(r) }}</span>
+              <span v-for="(s, i) in subTags(r)" :key="i" class="fee-sub" :style="tagStyle(s)">{{ s }}</span>
             </span>
             <span class="fee-count">{{ formula(r) }}</span>
+            <el-switch
+              v-if="dimension === 'organization'"
+              v-model="r.settled"
+              size="small"
+              inline-prompt
+              active-text="已结"
+              inactive-text="未结"
+              @change="onToggleSettled(r)"
+            />
             <span class="fee-amount">¥{{ formatMoney(r.fee) }}</span>
           </div>
           <div class="fee-bar">
@@ -58,14 +73,17 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import { ElMessage } from 'element-plus'
 import { Download } from '@element-plus/icons-vue'
 import { dashboardApi } from '@/api/dashboard'
 import { formatMoney, dayjs } from '@/utils/date'
 
 /* 默认选中上月，统计该月整月数据 */
 const month = ref(dayjs().subtract(1, 'month').format('YYYY-MM'))
-const dimension = ref('student')
+const dimension = ref('organization')
 const rows = ref([])
+const settledFee = ref(0)
+const unsettledFee = ref(0)
 
 const dimLabel = computed(() => (dimension.value === 'organization' ? '机构' : '学生'))
 const dimUnit = computed(() => (dimension.value === 'organization' ? '个机构' : '名学生'))
@@ -82,9 +100,34 @@ function formula(r) {
   return `${cnt}节 × ${unit} = ${fee}`
 }
 
-/* 学生维度显示机构名，机构维度显示该机构下所有学生名（· 分割） */
-function subText(r) {
-  return dimension.value === 'organization' ? r.studentNames || '' : r.organizationName || ''
+/* 机构维度返回学生名数组（一个学生一个标签），学生维度返回机构名单标签 */
+function subTags(r) {
+  if (dimension.value === 'organization') {
+    return (r.studentNames || '').split('·').filter(Boolean)
+  }
+  return r.organizationName ? [r.organizationName] : []
+}
+
+/* 标签配色：按名称哈希取色，同名稳定同色、不同名不同色 */
+const TAG_COLORS = [
+  { bg: 'rgba(99, 91, 255, 0.12)', color: '#635bff' },
+  { bg: 'rgba(48, 177, 48, 0.14)', color: '#2f9e2f' },
+  { bg: 'rgba(245, 166, 35, 0.16)', color: '#d98c00' },
+  { bg: 'rgba(0, 115, 230, 0.12)', color: '#0073e6' },
+  { bg: 'rgba(223, 27, 65, 0.12)', color: '#df1b41' },
+  { bg: 'rgba(43, 179, 163, 0.14)', color: '#2BB3A3' },
+  { bg: 'rgba(138, 132, 255, 0.14)', color: '#8a84ff' }
+]
+
+function hashStr(s) {
+  let h = 0
+  for (const ch of s) h = (h * 31 + ch.charCodeAt(0)) >>> 0
+  return h
+}
+
+function tagStyle(name) {
+  const c = TAG_COLORS[hashStr(name) % TAG_COLORS.length]
+  return { color: c.color, background: c.bg }
 }
 
 /* 进度条宽度 = 该生费用 / 最高费用，最高者占满 */
@@ -101,6 +144,34 @@ async function loadReport() {
   const end = m.endOf('month').format('YYYY-MM-DD')
   const r = await dashboardApi.incomeReportRange(start, end)
   rows.value = (dimension.value === 'organization' ? r.organizationFeeDetail : r.studentFeeDetail) || []
+  settledFee.value = Number(r.settled) || 0
+  unsettledFee.value = Number(r.unsettled) || 0
+}
+
+/* 手动切换某机构/家教行的结清状态 */
+async function onToggleSettled(r) {
+  const payload = {
+    settleMonth: month.value,
+    targetType: r.targetType,
+    targetKey: r.targetKey,
+    settled: !!r.settled
+  }
+  try {
+    await dashboardApi.updateSettlement(payload)
+    ElMessage.success(r.settled ? '已标记为已结清' : '已标记为未结清')
+    // 同步顶部汇总
+    const fee = Number(r.fee) || 0
+    if (r.settled) {
+      settledFee.value += fee
+      unsettledFee.value -= fee
+    } else {
+      settledFee.value -= fee
+      unsettledFee.value += fee
+    }
+  } catch (e) {
+    // 失败回滚开关
+    r.settled = !r.settled
+  }
 }
 
 /* 导出当前维度明细为 CSV（Excel 兼容，带 BOM 与转义） */
@@ -194,10 +265,35 @@ onMounted(() => {
 
 .fee-total {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
+
+  .fee-total-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .settle-chip {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 3px 12px;
+    border-radius: 999px;
+    font-variant-numeric: tabular-nums;
+
+    &--done {
+      color: #2f9e2f;
+      background: rgba(48, 177, 48, 0.12);
+    }
+
+    &--due {
+      color: #d98c00;
+      background: rgba(245, 166, 35, 0.16);
+    }
+  }
 
   .fee-total-value {
     font-size: 24px;
@@ -243,7 +339,8 @@ onMounted(() => {
     min-width: 0;
     display: flex;
     align-items: center;
-    gap: 8px;
+    flex-wrap: wrap;
+    gap: 6px;
     overflow: hidden;
 
     .fee-name-text {
@@ -255,16 +352,11 @@ onMounted(() => {
 
     .fee-sub {
       font-size: 12px;
-      font-weight: 400;
-      color: var(--color-muted);
+      font-weight: 500;
       padding: 1px 8px;
       border-radius: 999px;
-      background: var(--color-surface);
       white-space: nowrap;
       flex-shrink: 0;
-      max-width: 40%;
-      overflow: hidden;
-      text-overflow: ellipsis;
     }
   }
 

@@ -33,7 +33,7 @@
         </div>
       </div>
 
-      <CourseTable :list="list" :loading="loading" @edit="edit" @duplicate="duplicate" @remove="remove" />
+      <CourseTable :list="list" :loading="loading" @edit="edit" @remove="remove" />
 
       <div class="flex-end mt-16">
         <el-pagination
@@ -114,13 +114,6 @@ function create() {
 async function edit(row) {
   dialogVisible.value = true
   await dialogRef.value?.openForEdit(row)
-}
-async function duplicate(row) {
-  const start = dayjs(row.startTime).add(1, 'day').format('YYYY-MM-DDTHH:mm:ss')
-  const end = dayjs(row.endTime).add(1, 'day').format('YYYY-MM-DDTHH:mm:ss')
-  await courseApi.copy(row.id, { startTime: start, endTime: end })
-  ElMessage.success('已复制')
-  load()
 }
 async function remove(row) {
   await ElMessageBox.confirm(`确定删除「${row.title}」吗？`, '提示', { type: 'warning' })

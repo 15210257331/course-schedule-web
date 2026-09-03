@@ -27,7 +27,8 @@
             共 ¥{{ formatMoney(report.total) }} · {{ report.totalMinutes }} 小时 · {{ report.courseCount }} 节
           </span>
         </div>
-        <div ref="trendRef" class="trend-chart" />
+        <div v-if="hasTrend" ref="trendRef" class="trend-chart" />
+        <el-empty v-else description="暂无数据" :image-size="80" />
       </div>
 
       <TodayCourses :courses="todayCourses" />
@@ -39,19 +40,22 @@
         <div class="card-head">
           <h3 class="card-title">机构占比</h3>
         </div>
-        <div ref="orgRef" class="pie-chart" />
+        <div v-if="hasOrg" ref="orgRef" class="pie-chart" />
+        <el-empty v-else description="暂无数据" :image-size="80" />
       </div>
       <div class="card">
         <div class="card-head">
           <h3 class="card-title">学生占比</h3>
         </div>
-        <div ref="studentRef" class="pie-chart" />
+        <div v-if="hasStudent" ref="studentRef" class="pie-chart" />
+        <el-empty v-else description="暂无数据" :image-size="80" />
       </div>
       <div class="card">
         <div class="card-head">
           <h3 class="card-title">学段占比</h3>
         </div>
-        <div ref="subjectRef" class="pie-chart" />
+        <div v-if="hasStage" ref="subjectRef" class="pie-chart" />
+        <el-empty v-else description="暂无数据" :image-size="80" />
       </div>
     </div>
   </div>
@@ -74,8 +78,14 @@ const router = useRouter()
 
 const summary = reactive({})
 const todayCourses = ref([])
-const report = reactive({ total: 0, totalMinutes: 0, courseCount: 0 })
+const report = reactive({ total: 0, totalMinutes: 0, courseCount: 0, trend: [], byOrganization: [], byStudent: [], byStage: [] })
 const days = ref(30)
+
+/* 有数据才渲染图表，无数据显示空态（避免空 echarts 报错/空白） */
+const hasTrend = computed(() => (report.trend || []).length > 0)
+const hasOrg = computed(() => (report.byOrganization || []).length > 0)
+const hasStudent = computed(() => (report.byStudent || []).length > 0)
+const hasStage = computed(() => (report.byStage || []).length > 0)
 
 const trendRef = ref()
 const orgRef = ref()
@@ -124,7 +134,12 @@ function chartColors() {
 }
 
 function renderTrend(data) {
-  if (!trendRef.value) return
+  if (!trendRef.value) {
+    // 图表元素已被空态 v-if 移除：释放旧实例，避免复用 detached DOM
+    trendChart?.dispose()
+    trendChart = null
+    return
+  }
   const daysArr = data.map((d) => dayjs(d.day).format('M月D日'))
   const values = data.map((d) => Number(d.income))
   const c = chartColors()
@@ -136,7 +151,7 @@ function renderTrend(data) {
       xAxis: {
         type: 'category',
         data: daysArr,
-        boundaryGap: false,
+        boundaryGap: true,
         axisLine: { lineStyle: { color: c.split } },
         axisLabel: {
           color: c.axis,
@@ -193,7 +208,14 @@ function renderPies(r) {
     }
   ]
   defs.forEach((d, i) => {
-    if (!d.el) return
+    if (!d.el) {
+      // 图表元素已被空态 v-if 移除：释放旧实例
+      if (pieCharts[i]) {
+        pieCharts[i].dispose()
+        pieCharts[i] = null
+      }
+      return
+    }
     if (!pieCharts[i]) pieCharts[i] = echarts.init(d.el)
     pieCharts[i].setOption(d.option, true)
   })
@@ -201,9 +223,18 @@ function renderPies(r) {
 
 async function loadReport() {
   const r = await dashboardApi.incomeReport(days.value)
-  Object.assign(report, r)
+  Object.assign(report, {
+    total: 0,
+    totalMinutes: 0,
+    courseCount: 0,
+    trend: [],
+    byOrganization: [],
+    byStudent: [],
+    byStage: [],
+    ...r
+  })
   await nextTick()
-  renderTrend(r.trend || [])
+  renderTrend(report.trend || [])
   renderPies(r)
 }
 

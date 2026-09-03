@@ -15,7 +15,7 @@
             @clear="load"
           />
           <el-button type="primary" :icon="Search" @click="load">查询</el-button>
-          <span class="text-muted search-count">共 {{ total }} 个机构</span>
+          <!-- <span class="text-muted search-count">共 {{ total }} 个机构</span> -->
         </div>
         <el-button type="primary" :icon="Plus" @click="openDialog()">新增机构</el-button>
       </div>

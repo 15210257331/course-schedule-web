@@ -48,6 +48,37 @@
                 font-weight: 600;
                 color: var(--color-ink);
             }
+
+            .view-switch {
+                :deep(.el-button) {
+                    width: 44px;
+                    min-width: 44px;
+                    height: 32px;
+                    padding: 0;
+                    box-sizing: border-box;
+                    /* 锁定阴影/描边：悬停与选中态不再放大阴影，避免尺寸抖动 */
+                    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 0 0 1px var(--color-border);
+
+                    &:hover,
+                    &:focus,
+                    &:active {
+                        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 0 0 1px var(--color-border);
+                        transform: none;
+                    }
+
+                    /* 选中（primary）态：仅换描边颜色，尺寸保持不变 */
+                    &.el-button--primary,
+                    &.el-button--primary:hover,
+                    &.el-button--primary:focus,
+                    &.el-button--primary:active {
+                        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(99, 91, 255, 0.85);
+                        transform: none;
+                    }
+                }
+                :deep(.el-button:not(:last-child)) {
+                    margin-right: 0;
+                }
+            }
         }
 
         .toolbar-side.right {

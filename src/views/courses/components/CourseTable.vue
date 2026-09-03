@@ -30,10 +30,12 @@
     <el-table-column label="操作" align="center" min-width="220" fixed="right">
       <template #default="{ row }">
         <el-button link type="primary" size="small" @click="emit('edit', row)">编辑</el-button>
-        <el-button link type="warning" size="small" @click="emit('duplicate', row)">复制</el-button>
         <el-button link type="danger" size="small" @click="emit('remove', row)">删除</el-button>
       </template>
     </el-table-column>
+    <template #empty>
+      <el-empty description="暂无数据" :image-size="80" />
+    </template>
   </el-table>
 </template>
 
@@ -45,7 +47,7 @@ defineProps({
   list: { type: Array, default: () => [] },
   loading: { type: Boolean, default: false }
 })
-const emit = defineEmits(['edit', 'duplicate', 'remove'])
+const emit = defineEmits(['edit', 'remove'])
 
 const metaStore = useMetaStore()
 
