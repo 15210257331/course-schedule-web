@@ -91,9 +91,9 @@ import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Delete, Upload, Download } from '@element-plus/icons-vue'
-import { authApi } from '@/api/auth'
-import { uploadApi } from '@/api/upload'
-import { backupApi } from '@/api/backup'
+import { authProfile, authUpdateProfile, authUpdatePassword } from '@/api/auth'
+import { uploadAvatar } from '@/api/upload'
+import { backupExportData, backupImportData } from '@/api/backup'
 import { useAuthStore } from '@/store/auth'
 import { idb } from '@/utils/idb'
 
@@ -125,7 +125,7 @@ const pwdRules = {
 }
 
 async function loadProfile() {
-  const user = await authApi.profile()
+  const user = await authProfile()
   form.nickname = user.nickname
   form.avatar = user.avatar || ''
   form.email = user.email || ''
@@ -136,7 +136,7 @@ async function loadProfile() {
 async function saveProfile() {
   saving.value = true
   try {
-    const user = await authApi.updateProfile({ ...form, subjects: form.subjects.join(',') })
+    const user = await authUpdateProfile({ ...form, subjects: form.subjects.join(',') })
     authStore.setUser({ ...authStore.user, ...user })
     ElMessage.success('资料已保存')
   } finally {
@@ -146,7 +146,7 @@ async function saveProfile() {
 
 async function doUpload({ file }) {
   try {
-    const res = await uploadApi.uploadAvatar(file)
+    const res = await uploadAvatar(file)
     form.avatar = res.url
     ElMessage.success('头像已上传，保存资料后生效')
   } catch (e) {
@@ -158,7 +158,7 @@ async function savePassword() {
   await pwdRef.value.validate()
   savingPwd.value = true
   try {
-    await authApi.updatePassword({ oldPassword: pwd.oldPassword, newPassword: pwd.newPassword })
+    await authUpdatePassword({ oldPassword: pwd.oldPassword, newPassword: pwd.newPassword })
     ElMessage.success('密码已修改，请重新登录')
     setTimeout(() => {
       authStore.logout()
@@ -178,7 +178,7 @@ async function clearCache() {
 async function exportBackup() {
   exporting.value = true
   try {
-    const blob = await backupApi.exportData()
+    const blob = await backupExportData()
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
@@ -217,7 +217,7 @@ async function onImportFile(e) {
     )
     importing.value = true
     try {
-      const count = await backupApi.importData(data)
+      const count = await backupImportData(data)
       ElMessage.success(`导入成功，共恢复 ${count ?? 0} 条课程`)
       await idb.clear()
     } finally {

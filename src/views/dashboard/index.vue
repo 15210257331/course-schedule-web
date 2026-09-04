@@ -66,7 +66,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, nextTick } from 'v
 import { useRouter } from 'vue-router'
 import * as echarts from 'echarts'
 import { Calendar, Coin, TrendCharts, Wallet } from '@element-plus/icons-vue'
-import { dashboardApi } from '@/api/dashboard'
+import { dashboardSummary, dashboardTodayCourses, dashboardIncomeReport } from '@/api/dashboard'
 import { formatMoney, dayjs } from '@/utils/date'
 import { useAuthStore } from '@/store/auth'
 import PageHead from './components/PageHead.vue'
@@ -222,7 +222,7 @@ function renderPies(r) {
 }
 
 async function loadReport() {
-  const r = await dashboardApi.incomeReport(days.value)
+  const r = await dashboardIncomeReport(days.value)
   Object.assign(report, {
     total: 0,
     totalMinutes: 0,
@@ -239,7 +239,7 @@ async function loadReport() {
 }
 
 async function load() {
-  const [s, courses] = await Promise.all([dashboardApi.summary(), dashboardApi.todayCourses()])
+  const [s, courses] = await Promise.all([dashboardSummary(), dashboardTodayCourses()])
   Object.assign(summary, s)
   todayCourses.value = courses
   await loadReport()

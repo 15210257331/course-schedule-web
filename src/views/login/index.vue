@@ -116,7 +116,7 @@ import { reactive, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { User, Lock, UserFilled, Message } from '@element-plus/icons-vue'
-import { authApi } from '@/api/auth'
+import { authLogin, authRegister, authSendResetCode, authResetPassword } from '@/api/auth'
 import { useAuthStore } from '@/store/auth'
 
 const router = useRouter()
@@ -164,7 +164,7 @@ async function handleLogin() {
   await loginRef.value.validate()
   loading.value = true
   try {
-    const data = await authApi.login(loginForm)
+    const data = await authLogin(loginForm)
     afterLogin(data)
   } finally {
     loading.value = false
@@ -175,7 +175,7 @@ async function handleRegister() {
   await regRef.value.validate()
   loading.value = true
   try {
-    const data = await authApi.register({
+    const data = await authRegister({
       username: regForm.username,
       nickname: regForm.nickname,
       email: regForm.email,
@@ -224,6 +224,7 @@ function initReset() {
   resetForm.code = ''
   resetForm.newPassword = ''
   resetForm.confirm = ''
+  resetRef.value?.clearValidate()
 }
 
 async function sendCode() {
@@ -231,7 +232,7 @@ async function sendCode() {
     ElMessage.warning('请先输入邮箱')
     return
   }
-  await authApi.sendResetCode(resetForm.email)
+  await authSendResetCode(resetForm.email)
   ElMessage.success('验证码已发送，请查收')
   countdown.value = 60
   countdownTimer = setInterval(() => {
@@ -244,7 +245,7 @@ async function submitReset() {
   await resetRef.value.validate()
   resetLoading.value = true
   try {
-    await authApi.resetPassword({
+    await authResetPassword({
       email: resetForm.email,
       code: resetForm.code,
       newPassword: resetForm.newPassword

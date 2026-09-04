@@ -84,8 +84,8 @@
                         </svg>
                     </button>
 
-                    <!-- 提醒中心 -->
-                    <el-popover width="340" trigger="click" placement="bottom-end" popper-class="notify-popper">
+                    <!-- 提醒中心（仅教师端；管理员通过消息推送发公告，自身不接收） -->
+                    <el-popover v-if="!isAdmin" width="340" trigger="click" placement="bottom-end" popper-class="notify-popper">
                         <template #reference>
                             <button class="icon-btn" aria-label="提醒中心">
                                 <el-badge :value="unreadCount" :hidden="!unreadCount" :max="99">
@@ -105,19 +105,38 @@
                                 <span class="np-title">提醒中心</span>
                                 <el-button link type="primary" size="small" @click="markAllRead">全部已读</el-button>
                             </div>
-                            <div v-if="!notifications.length" class="np-empty">暂无提醒</div>
+                            <div v-if="!notifyFeed.length" class="np-empty">暂无消息</div>
                             <div v-else class="np-list">
-                                <div v-for="n in notifications" :key="n.id" class="notify-item" :class="{ unread: !n.isRead }" @click="openNotification(n)">
+                                <div
+                                    v-for="item in notifyFeed"
+                                    :key="item.key"
+                                    class="notify-item"
+                                    :class="[{ unread: !item.raw.isRead }, `kind-${item.kind}`]"
+                                    @click="openFeedItem(item)"
+                                >
                                     <div class="ni-body">
                                         <div class="ni-top">
-                                            <span class="ni-title">{{ n.title }}</span>
-                                            <span class="ni-time">{{ notifyTime(n) }}</span>
+                                            <span class="ni-title">
+                                                <span class="msg-tag" :class="item.kind === 'reminder' ? 'reminder' : item.raw.type">{{ item.kind === "reminder" ? "提醒" : msgTypeLabel(item.raw.type) }}</span>
+                                                {{ item.raw.title }}
+                                            </span>
+                                            <span class="ni-time">{{ item.kind === "reminder" ? notifyTime(item.raw) : msgTime(item.raw) }}</span>
                                         </div>
-                                        <p class="ni-content">{{ n.content }}</p>
+                                        <p class="ni-content">{{ item.raw.content }}</p>
                                     </div>
-                                    <button class="notify-del" title="删除提醒" @click.stop="removeNotification(n)">
+                                    <button
+                                        v-if="item.kind === 'reminder'"
+                                        class="notify-del"
+                                        title="删除提醒"
+                                        @click.stop="removeNotification(item.raw)"
+                                    >
                                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12" />
+                                        </svg>
+                                    </button>
+                                    <button v-else class="notify-del" title="查看详情" @click.stop="showMessageDetail(item.raw)">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5l7 7-7 7" />
                                         </svg>
                                     </button>
                                 </div>
@@ -142,7 +161,7 @@
                                         <el-icon><User /></el-icon>
                                         个人中心
                                     </router-link>
-                                    <router-link :to="{ name: 'settings' }" class="user-menu-item" @click="userMenuOpen = false">
+                                    <router-link v-if="!isAdmin" :to="{ name: 'settings' }" class="user-menu-item" @click="userMenuOpen = false">
                                         <el-icon><Setting /></el-icon>
                                         系统设置
                                     </router-link>
@@ -201,26 +220,38 @@
     import { ElMessageBox } from "element-plus"
     import { User, Setting, SwitchButton } from "@element-plus/icons-vue"
     import { useAuthStore } from "@/store/auth"
-    import { notificationApi } from "@/api/notification"
-    import { settingApi } from "@/api/setting"
-    import { authApi } from "@/api/auth"
-    import { courseApi } from "@/api/course"
-    import { templateApi } from "@/api/courseTemplate"
-    import { organizationApi } from "@/api/organization"
+    import { notificationList, notificationDue, notificationMarkRead, notificationMarkAllRead, notificationRemove } from "@/api/notification"
+    import { messageList, messageMarkRead } from "@/api/admin"
+    import { settingList } from "@/api/setting"
+    import { authProfile } from "@/api/auth"
+    import { coursePage } from "@/api/course"
+    import { templateList } from "@/api/courseTemplate"
+    import { organizationList } from "@/api/organization"
     import { dayjs } from "@/utils/date"
 
     const route = useRoute()
     const router = useRouter()
     const authStore = useAuthStore()
 
-    const navItems = [
-        { name: "dashboard", title: "工作台" },
-        { name: "schedule", title: "课程表" },
-        { name: "courses", title: "课程管理" },
-        { name: "students", title: "学生管理" },
-        { name: "organizations", title: "机构管理" },
-        { name: "income", title: "收入" },
-    ]
+    const isAdmin = computed(() => authStore.user?.role === "ADMIN")
+    const navItems = computed(() => {
+        /* 管理员：仅管理端菜单；教师：教师端菜单 */
+        if (isAdmin.value) {
+            return [
+                { name: "adminDashboard", title: "数据看板" },
+                { name: "adminTeachers", title: "教师管理" },
+                { name: "adminMessages", title: "消息推送" },
+            ]
+        }
+        return [
+            { name: "dashboard", title: "工作台" },
+            { name: "schedule", title: "课程表" },
+            { name: "courses", title: "课程管理" },
+            { name: "students", title: "学生管理" },
+            { name: "organizations", title: "机构管理" },
+            { name: "income", title: "收入" },
+        ]
+    })
 
     function isActive(name) {
         return route.name === name
@@ -266,11 +297,26 @@
 
     // ---------- 提醒 ----------
     const notifications = ref([])
-    const unreadCount = computed(() => notifications.value.filter(n => !n.isRead).length)
+    const messages = ref([])
+    const unreadCount = computed(() => notifications.value.filter(n => !n.isRead).length + messages.value.filter(m => !m.isRead).length)
+
+    /* 合并提醒与系统消息，按时间倒序展示（去掉 tab 后的统一列表） */
+    const notifyFeed = computed(() => {
+        const items = [
+            ...notifications.value.map(n => ({ kind: "reminder", raw: n, key: `r-${n.id}`, time: n.remindAt || n.createdAt })),
+            ...messages.value.map(m => ({ kind: "message", raw: m, key: `m-${m.id}`, time: m.createdAt })),
+        ]
+        return items.sort((a, b) => dayjs(b.time || 0).valueOf() - dayjs(a.time || 0).valueOf())
+    })
+
+    function openFeedItem(item) {
+        if (item.kind === "reminder") openNotification(item.raw)
+        else openMessage(item.raw)
+    }
 
     async function loadNotifications() {
         try {
-            notifications.value = await notificationApi.list(20)
+            notifications.value = await notificationList(20)
         } catch (e) {
             /* 静默 */
         }
@@ -287,7 +333,7 @@
     }
 
     async function markAllRead() {
-        await notificationApi.markAllRead()
+        await notificationMarkAllRead()
         loadNotifications()
     }
 
@@ -295,7 +341,7 @@
     async function openNotification(n) {
         if (!n.isRead) {
             try {
-                await notificationApi.markRead(n.id)
+                await notificationMarkRead(n.id)
             } catch (e) {
                 /* 忽略 */
             }
@@ -308,11 +354,52 @@
 
     async function removeNotification(n) {
         try {
-            await notificationApi.remove(n.id)
+            await notificationRemove(n.id)
             await loadNotifications()
         } catch (e) {
             /* 静默 */
         }
+    }
+
+    // ---------- 系统消息（公告） ----------
+    async function loadMessages() {
+        try {
+            messages.value = await messageList(20)
+        } catch (e) {
+            /* 静默 */
+        }
+    }
+
+    function msgTypeLabel(type) {
+        return { announcement: "公告", activity: "活动", notice: "通知" }[type] || "公告"
+    }
+
+    function msgTime(m) {
+        const t = m.createdAt
+        if (!t) return ""
+        const d = dayjs(t)
+        const now = dayjs()
+        if (d.isSame(now, "day")) return d.format("HH:mm")
+        return d.format("M月D日 HH:mm")
+    }
+
+    async function openMessage(m) {
+        if (!m.isRead) {
+            try {
+                await messageMarkRead(m.id)
+                await loadMessages()
+            } catch (e) {
+                /* 忽略 */
+            }
+        }
+    }
+
+    /* 消息详情弹窗 */
+    function showMessageDetail(m) {
+        ElMessageBox.alert(m.content, `【${msgTypeLabel(m.type)}】${m.title}`, {
+            confirmButtonText: "知道了",
+            callback: () => openMessage(m),
+        })
     }
 
     // ---------- 全局搜索 ----------
@@ -340,12 +427,11 @@
         searching.value = true
         try {
             const [courses, templates, orgs] = await Promise.all([
-                courseApi
-                    .page({ pageNum: 1, pageSize: 10, title: kw })
+                coursePage({ pageNum: 1, pageSize: 10, title: kw })
                     .then(r => r.list || [])
                     .catch(() => []),
-                templateApi.list(kw).catch(() => []),
-                organizationApi.list(kw).catch(() => []),
+                templateList(kw).catch(() => []),
+                organizationList(kw).catch(() => []),
             ])
             searchResults.value = mergeSearch(courses, templates, orgs)
         } finally {
@@ -395,11 +481,11 @@
     }
     async function pollDueReminders() {
         try {
-            const due = await notificationApi.due()
+            const due = await notificationDue()
             if (!due || !due.length) return
             let settings = {}
             try {
-                settings = await settingApi.list()
+                settings = await settingList()
             } catch (e) {
                 /* 忽略 */
             }
@@ -407,7 +493,7 @@
             if (browserNotify && (await requestNotifyPermission())) {
                 for (const n of due) {
                     new Notification(n.title || "课程提醒", { body: n.content })
-                    await notificationApi.markRead(n.id)
+                    await notificationMarkRead(n.id)
                 }
             }
             loadNotifications()
@@ -417,13 +503,16 @@
     }
 
     onMounted(() => {
-        loadNotifications()
+        /* 管理员：无提醒中心/课程轮询，无需加载教师端数据 */
+        if (!isAdmin.value) {
+            loadNotifications()
+            loadMessages()
+            reminderTimer = setInterval(pollDueReminders, 60_000)
+        }
         /* 刷新用户资料，保证任教学科标签始终可用（老会话 localStorage 里可能没有 subjects） */
-        authApi
-            .profile()
+        authProfile()
             .then(u => u && authStore.setUser({ ...authStore.user, ...u }))
             .catch(() => {})
-        reminderTimer = setInterval(pollDueReminders, 60_000)
         window.addEventListener("scroll", onScroll, { passive: true })
         document.addEventListener("click", onDocClick)
     })
@@ -918,6 +1007,31 @@
             margin: -4px 0;
         }
 
+        .msg-tag {
+            display: inline-block;
+            padding: 0 5px;
+            margin-right: 4px;
+            font-size: 11px;
+            line-height: 16px;
+            border-radius: 4px;
+            color: var(--color-primary);
+            background: rgba(99, 91, 255, 0.1);
+            vertical-align: 1px;
+
+            &.reminder {
+                color: #2563eb;
+                background: rgba(37, 99, 235, 0.1);
+            }
+            &.activity {
+                color: #e67e22;
+                background: rgba(230, 126, 34, 0.1);
+            }
+            &.notice {
+                color: #16a34a;
+                background: rgba(22, 163, 74, 0.1);
+            }
+        }
+
         .np-head {
             display: flex;
             align-items: center;
@@ -952,26 +1066,32 @@
         .notify-item {
             position: relative;
             display: flex;
-            align-items: flex-start;
+            align-items: center;
             gap: 6px;
             padding: 12px 30px 12px 14px;
+            min-height: 72px;
             background: var(--color-surface);
             border: 1px solid var(--color-border);
             border-radius: 10px;
             cursor: pointer;
-            transition:
-                box-shadow 0.15s ease,
-                border-color 0.15s ease,
-                transform 0.15s ease;
+            overflow: hidden;
 
-            &:hover {
-                border-color: var(--color-tertiary);
-                box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
-                transform: translateY(-1px);
+            /* 左侧色条标记消息类型 */
+            &::after {
+                content: "";
+                position: absolute;
+                left: 0;
+                top: 0;
+                bottom: 0;
+                width: 3px;
+                background: transparent;
+            }
 
-                .ni-title {
-                    color: var(--color-primary);
-                }
+            &.kind-reminder::after {
+                background: #2563eb;
+            }
+            &.kind-message::after {
+                background: var(--color-primary);
             }
 
             .ni-body {
@@ -994,7 +1114,6 @@
                 overflow: hidden;
                 white-space: nowrap;
                 text-overflow: ellipsis;
-                transition: color 0.15s ease;
             }
 
             .ni-time {
@@ -1005,7 +1124,7 @@
             }
 
             .ni-content {
-                margin: 2px 0 0;
+                margin: 4px 0 0;
                 font-size: 12px;
                 color: var(--color-muted);
                 line-height: 1.5;

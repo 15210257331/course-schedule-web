@@ -59,7 +59,7 @@ import { useRoute } from 'vue-router'
 import dayjs from 'dayjs'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Download, Plus, Search } from '@element-plus/icons-vue'
-import { courseApi } from '@/api/course'
+import { coursePage, courseRemove } from '@/api/course'
 import CourseFormDialog from '@/components/CourseFormDialog.vue'
 import CourseTable from './components/CourseTable.vue'
 
@@ -80,7 +80,7 @@ async function fetchData() {
   loading.value = true
   try {
     const [start, end] = range.value
-    const res = await courseApi.page({
+    const res = await coursePage({
       pageNum: page.value,
       pageSize: pageSize.value,
       title: keyword.value.trim() || undefined,
@@ -117,7 +117,7 @@ async function edit(row) {
 }
 async function remove(row) {
   await ElMessageBox.confirm(`确定删除「${row.title}」吗？`, '提示', { type: 'warning' })
-  await courseApi.remove(row.id)
+  await courseRemove(row.id)
   ElMessage.success('删除成功')
   load()
 }
@@ -132,7 +132,7 @@ const statusText = { scheduled: '待上课', completed: '已结束' }
 
 async function exportCsv() {
   const [start, end] = range.value
-  const res = await courseApi.page({
+  const res = await coursePage({
     pageNum: 1,
     pageSize: 100000,
     title: keyword.value.trim() || undefined,

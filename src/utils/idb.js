@@ -101,8 +101,8 @@ export async function loadCourses(start, end, title, force = false) {
     const cached = await idb.load(key)
     if (cached) return cached
   }
-  const { courseApi } = await import('@/api/course')
-  const fresh = await courseApi.list(start, end, title)
+  const { courseList } = await import('@/api/course')
+  const fresh = await courseList(start, end, title)
   await idb.save(key, fresh)
   return fresh
 }
@@ -114,8 +114,8 @@ export async function loadOrganizations(force = false) {
     const cached = await idb.load(key)
     if (cached) return cached
   }
-  const { organizationApi } = await import('@/api/organization')
-  const fresh = await organizationApi.list()
+  const { organizationList } = await import('@/api/organization')
+  const fresh = await organizationList()
   await idb.save(key, fresh)
   return fresh
 }
@@ -127,8 +127,8 @@ export async function loadCourseTemplates(force = false) {
     const cached = await idb.load(key)
     if (cached) return cached
   }
-  const { templateApi } = await import('@/api/courseTemplate')
-  const fresh = await templateApi.list()
+  const { templateList } = await import('@/api/courseTemplate')
+  const fresh = await templateList()
   await idb.save(key, fresh)
   return fresh
 }

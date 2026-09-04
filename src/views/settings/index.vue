@@ -36,7 +36,7 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { settingApi } from '@/api/setting'
+import { settingList, settingSave } from '@/api/setting'
 import { localCacheEnabled, setLocalCacheEnabled } from '@/utils/idb'
 
 const saving = ref(false)
@@ -50,7 +50,7 @@ const form = reactive({
 })
 
 async function load() {
-  const map = await settingApi.list()
+  const map = await settingList()
   form.defaultDuration = Number(map.defaultDuration || 60)
   form.reminderOffset = Number(map.reminderOffset || 30)
   form.defaultFee = Number(map.defaultFee || 300)
@@ -62,7 +62,7 @@ async function load() {
 async function save() {
   saving.value = true
   try {
-    await settingApi.save({
+    await settingSave({
       defaultDuration: String(form.defaultDuration),
       reminderOffset: String(form.reminderOffset),
       defaultFee: String(form.defaultFee),

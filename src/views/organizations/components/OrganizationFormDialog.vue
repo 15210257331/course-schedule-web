@@ -1,5 +1,5 @@
 <template>
-    <el-dialog v-model="visible" :title="form.id ? '编辑机构' : '新增机构'" width="520px">
+    <el-dialog v-model="visible" :title="form.id ? '编辑机构' : '新增机构'" width="520px" @closed="onClosed">
         <el-form ref="formRef" :model="form" :rules="rules" label-width="90px">
             <el-form-item label="机构名称" prop="name">
                 <el-input v-model="form.name" placeholder="输入机构名称" />
@@ -17,15 +17,7 @@
                 </el-col>
             </el-row>
             <el-form-item label="地址">
-                <el-input v-model="form.address" placeholder="如：XX路XX号XX教育">
-                    <template #suffix>
-                        <el-tooltip content="查看当前位置到该地址的路线" placement="top">
-                            <el-icon class="map-trigger" @click.stop="openMap">
-                                <Position />
-                            </el-icon>
-                        </el-tooltip>
-                    </template>
-                </el-input>
+                <el-input v-model="form.address" placeholder="如：XX路XX号XX教育" />
             </el-form-item>
             <el-form-item label="备注">
                 <el-input v-model="form.remark" type="textarea" :rows="2" placeholder="备注"/>
@@ -35,18 +27,15 @@
             <el-button @click="visible = false">取消</el-button>
             <el-button type="primary" :loading="saving" @click="submit">保存</el-button>
         </template>
-        <MapRouteDialog v-model:visible="mapVisible" :address="form.address" @picked="onPicked" />
     </el-dialog>
 </template>
 
 <script setup>
     import { computed, reactive, ref } from "vue"
     import { ElMessage } from "element-plus"
-    import { Position } from "@element-plus/icons-vue"
-    import { organizationApi } from "@/api/organization"
+    import { organizationCreate, organizationUpdate } from "@/api/organization"
     import { useMetaStore } from "@/store/meta"
     import { COURSE_COLORS } from "@/utils/date"
-    import MapRouteDialog from "./MapRouteDialog.vue"
 
     const props = defineProps({ visible: { type: Boolean, default: false } })
     const emit = defineEmits(["update:visible", "saved"])
@@ -59,7 +48,6 @@
     const metaStore = useMetaStore()
     const saving = ref(false)
     const formRef = ref()
-    const mapVisible = ref(false)
 
     const form = reactive({
         id: null,
@@ -90,17 +78,10 @@
         })
     }
 
-    function openMap() {
-        if (!form.address.trim()) {
-            ElMessage.warning("请先填写机构地址")
-            return
-        }
-        mapVisible.value = true
-    }
-
-    function onPicked(addr) {
-        form.address = addr
-        ElMessage.success("已回填所选地址")
+    /* 弹窗完全关闭后重置表单与验证状态，避免下次打开残留上次输入和错误提示 */
+    function onClosed() {
+        openForEdit(null)
+        formRef.value?.clearValidate()
     }
 
     async function submit() {
@@ -109,8 +90,8 @@
         try {
             const { id, ...payload } = form
             payload.color = form.id ? form.color || null : nextColor()
-            if (id) await organizationApi.update(id, payload)
-            else await organizationApi.create(payload)
+            if (id) await organizationUpdate(id, payload)
+            else await organizationCreate(payload)
             ElMessage.success("保存成功")
             visible.value = false
             emit("saved")
@@ -121,13 +102,3 @@
 
     defineExpose({ openForEdit })
 </script>
-
-<style lang="scss" scoped>
-    .map-trigger {
-        cursor: pointer;
-        color: var(--color-muted);
-        &:hover {
-            color: var(--color-primary);
-        }
-    }
-</style>

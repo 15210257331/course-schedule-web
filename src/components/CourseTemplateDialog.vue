@@ -1,5 +1,5 @@
 <template>
-    <el-dialog :model-value="visible" :title="form.id ? '编辑模板' : '新建模板'" width="680px" @update:model-value="$emit('update:visible', $event)" @closed="resetForm">
+    <el-dialog :model-value="visible" :title="form.id ? '编辑模板' : '新建模板'" width="680px" @update:model-value="$emit('update:visible', $event)" @closed="onClosed">
         <el-form ref="formRef" :model="form" :rules="rules" label-width="90px">
             <el-row :gutter="12">
                 <el-col :span="12">
@@ -105,9 +105,9 @@
     import { computed, reactive, ref, watch } from "vue"
     import { ElMessage } from "element-plus"
     import { QuestionFilled } from "@element-plus/icons-vue"
-    import { templateApi } from "@/api/courseTemplate"
-    import { authApi } from "@/api/auth"
-    import { settingApi } from "@/api/setting"
+    import { templateCreate, templateUpdate } from "@/api/courseTemplate"
+    import { authProfile } from "@/api/auth"
+    import { settingList } from "@/api/setting"
     import { useAuthStore } from "@/store/auth"
     import { useMetaStore } from "@/store/meta"
 
@@ -126,7 +126,7 @@
     /* 加载系统设置的默认课程时长和默认课时费 */
     async function loadSettings() {
         try {
-            const map = await settingApi.list()
+            const map = await settingList()
             defaultDuration.value = Number(map.defaultDuration || 120)
             defaultFee.value = Number(map.defaultFee || 300)
         } catch (e) {
@@ -182,7 +182,7 @@
             await loadSettings()
             if (authStore.user?.subjects == null) {
                 try {
-                    const user = await authApi.profile()
+                    const user = await authProfile()
                     authStore.setUser({ ...authStore.user, ...user })
                 } catch (e) {
                     /* 忽略，下拉为空时已有提示 */
@@ -201,6 +201,12 @@
             }
         },
     )
+
+    /* 弹窗完全关闭后重置表单与验证状态，避免下次打开残留上次输入和错误提示 */
+    function onClosed() {
+        resetForm()
+        formRef.value?.clearValidate()
+    }
 
     function resetForm() {
         Object.assign(form, defaults())
@@ -228,9 +234,9 @@
                 repeatType: form.repeatType || null,
             }
             if (form.id) {
-                await templateApi.update(form.id, payload)
+                await templateUpdate(form.id, payload)
             } else {
-                await templateApi.create(payload)
+                await templateCreate(payload)
             }
             ElMessage.success("保存成功")
             emit("update:visible", false)

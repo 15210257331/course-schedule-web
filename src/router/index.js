@@ -64,6 +64,32 @@ const routes = [
     ]
   },
   {
+    path: '/admin',
+    component: () => import('@/layout/MainLayout.vue'),
+    redirect: '/admin/teachers',
+    meta: { requiresAdmin: true },
+    children: [
+      {
+        path: 'dashboard',
+        name: 'adminDashboard',
+        component: () => import('@/views/admin/dashboard/index.vue'),
+        meta: { title: '数据看板', requiresAdmin: true }
+      },
+      {
+        path: 'teachers',
+        name: 'adminTeachers',
+        component: () => import('@/views/admin/teachers/index.vue'),
+        meta: { title: '教师管理', requiresAdmin: true }
+      },
+      {
+        path: 'messages',
+        name: 'adminMessages',
+        component: () => import('@/views/admin/messages/index.vue'),
+        meta: { title: '消息推送', requiresAdmin: true }
+      }
+    ]
+  },
+  {
     path: '/:pathMatch(.*)*',
     redirect: '/schedule'
   }
@@ -81,7 +107,16 @@ router.beforeEach((to) => {
     return { name: 'login', query: { redirect: to.fullPath } }
   }
   if (to.meta.public && authStore.isLoggedIn) {
+    /* 管理员登录后默认进入数据看板 */
+    return authStore.user?.role === 'ADMIN' ? { name: 'adminDashboard' } : { name: 'schedule' }
+  }
+  /* 管理端页面：非管理员跳转课程表 */
+  if (to.meta.requiresAdmin && authStore.user?.role !== 'ADMIN') {
     return { name: 'schedule' }
+  }
+  /* 教师端页面：管理员跳转数据看板 */
+  if (!to.meta.requiresAdmin && !to.meta.public && authStore.user?.role === 'ADMIN') {
+    return { name: 'adminDashboard' }
   }
   return true
 })

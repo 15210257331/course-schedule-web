@@ -76,8 +76,8 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import dayjs from 'dayjs'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { courseApi } from '@/api/course'
-import { templateApi } from '@/api/courseTemplate'
+import { courseDetail, courseCreate, courseRemove, courseMove, courseCopyWeek } from '@/api/course'
+import { templateRemove } from '@/api/courseTemplate'
 import { useMetaStore } from '@/store/meta'
 import { loadCourses, loadCourseTemplates, loadOrganizations } from '@/utils/idb'
 import { useCache } from '@/composables/useCache'
@@ -184,7 +184,7 @@ async function reload() {
 /* 从提醒中心跳转：定位到指定课程所在日期，切日视图并高亮该课程 */
 async function locateCourse(courseId) {
   try {
-    const c = await courseApi.get(courseId)
+    const c = await courseDetail(courseId)
     if (!c || !c.startTime) return
     view.value = 'day'
     anchor.value = dayjs(c.startTime).toDate()
@@ -237,7 +237,7 @@ async function openDetail(c) {
 
 async function copyNextWeek() {
   await ElMessageBox.confirm('将本周全部课程复制到下周，确定吗？', '复制课程')
-  const count = await courseApi.copyWeek(1)
+  const count = await courseCopyWeek(1)
   ElMessage.success(`已复制 ${count} 节课到下周`)
   reload()
 }
@@ -280,7 +280,7 @@ async function confirmRemoveCourse(cid) {
     { type: 'warning', confirmButtonText: isSeries ? '删除全部' : '删除', cancelButtonText: '取消' }
   ).then(() => true).catch(() => false)
   if (!ok) return
-  await courseApi.remove(cid)
+  await courseRemove(cid)
   ElMessage.success('删除成功')
   reload()
 }
@@ -292,7 +292,7 @@ async function editTemplate(t) {
 }
 async function removeTemplate(t) {
   await ElMessageBox.confirm(`确定删除模板「${t.title}」吗？`, '提示', { type: 'warning' })
-  await templateApi.remove(t.id)
+  await templateRemove(t.id)
   ElMessage.success('删除成功')
   reloadTemplates()
 }
@@ -380,7 +380,7 @@ async function scheduleTemplate(tpl, date, minute) {
     payload.repeatEndDate = dayjs(date).endOf('month').format('YYYY-MM-DD')
   }
   try {
-    await courseApi.create(payload)
+    await courseCreate(payload)
     ElMessage.success(`已排课：${start.format('MM-DD HH:mm')} ${tpl.title}`)
     reload()
   } catch (e) {
@@ -489,7 +489,7 @@ function startDrag(e, c) {
       const newStart = dayjs(pos.date).add(snapped, 'minute').format('YYYY-MM-DDTHH:mm:ss')
       const newEnd = dayjs(newStart).add(durMin, 'minute').format('YYYY-MM-DDTHH:mm:ss')
       try {
-        await courseApi.move(cid, { startTime: newStart, endTime: newEnd })
+        await courseMove(cid, { startTime: newStart, endTime: newEnd })
         reload()
       } catch (err) {
         /* 冲突等错误由拦截器统一提示 */

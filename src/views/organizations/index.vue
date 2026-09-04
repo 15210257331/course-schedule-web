@@ -45,7 +45,7 @@ import { onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search } from '@element-plus/icons-vue'
-import { organizationApi } from '@/api/organization'
+import { organizationPage, organizationRemove } from '@/api/organization'
 import { useMetaStore } from '@/store/meta'
 import { loadOrganizations } from '@/utils/idb'
 import OrganizationTable from './components/OrganizationTable.vue'
@@ -66,7 +66,7 @@ const pageSize = ref(20)
 async function fetchData() {
   loading.value = true
   try {
-    const res = await organizationApi.page({
+    const res = await organizationPage({
       pageNum: page.value,
       pageSize: pageSize.value,
       name: keyword.value.trim() || undefined
@@ -100,7 +100,7 @@ async function openDialog(row) {
 
 async function remove(row) {
   await ElMessageBox.confirm(`确定删除机构「${row.name}」吗？`, '提示', { type: 'warning' })
-  await organizationApi.remove(row.id)
+  await organizationRemove(row.id)
   ElMessage.success('删除成功')
   load()
 }

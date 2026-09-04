@@ -4,7 +4,7 @@
     :title="form.id ? '编辑课程' : '新增课程'"
     width="680px"
     @update:model-value="$emit('update:visible', $event)"
-    @closed="initForm"
+    @closed="onClosed"
   >
     <el-form ref="formRef" :model="form" :rules="rules" label-width="90px">
       <el-row :gutter="12">
@@ -109,9 +109,9 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { courseApi } from '@/api/course'
-import { authApi } from '@/api/auth'
-import { settingApi } from '@/api/setting'
+import { courseCreate, courseUpdate } from '@/api/course'
+import { authProfile } from '@/api/auth'
+import { settingList } from '@/api/setting'
 import { useAuthStore } from '@/store/auth'
 import { useMetaStore } from '@/store/meta'
 
@@ -131,7 +131,7 @@ const defaultFee = ref(300)
 /* 加载系统设置的默认课时费 */
 async function loadSettings() {
   try {
-    const map = await settingApi.list()
+    const map = await settingList()
     defaultFee.value = Number(map.defaultFee || 300)
   } catch (e) {
     /* 使用默认值 */
@@ -188,7 +188,7 @@ watch(
     await loadSettings()
     if (authStore.user?.subjects == null) {
       try {
-        const user = await authApi.profile()
+        const user = await authProfile()
         authStore.setUser({ ...authStore.user, ...user })
       } catch (e) {
         /* 忽略 */
@@ -212,6 +212,12 @@ watch(
     }
   }
 )
+
+/* 弹窗完全关闭后重置表单与验证状态，避免下次打开残留上次输入和错误提示 */
+function onClosed() {
+  initForm()
+  formRef.value?.clearValidate()
+}
 
 function initForm() {
   Object.assign(form, {
@@ -255,9 +261,9 @@ async function submit() {
   }
   try {
     if (form.id) {
-      await courseApi.update(form.id, payload)
+      await courseUpdate(form.id, payload)
     } else {
-      await courseApi.create(payload)
+      await courseCreate(payload)
     }
     ElMessage.success('保存成功')
     emit('update:visible', false)

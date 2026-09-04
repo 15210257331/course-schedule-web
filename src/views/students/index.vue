@@ -41,7 +41,7 @@
 import { onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { Search } from '@element-plus/icons-vue'
-import { templateApi } from '@/api/courseTemplate'
+import { templatePage } from '@/api/courseTemplate'
 import StudentTable from './components/StudentTable.vue'
 
 /* 一个模板代表一个学生：学生列表由课程模板聚合而来 */
@@ -57,7 +57,7 @@ const pageSize = ref(20)
 async function fetchData() {
   loading.value = true
   try {
-    const res = await templateApi.page({
+    const res = await templatePage({
       pageNum: page.value,
       pageSize: pageSize.value,
       name: keyword.value.trim() || undefined

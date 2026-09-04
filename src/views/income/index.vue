@@ -75,7 +75,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Download } from '@element-plus/icons-vue'
-import { dashboardApi } from '@/api/dashboard'
+import { dashboardIncomeReportRange, dashboardUpdateSettlement } from '@/api/dashboard'
 import { formatMoney, dayjs } from '@/utils/date'
 
 /* 默认选中上月，统计该月整月数据 */
@@ -142,7 +142,7 @@ async function loadReport() {
   const m = dayjs(month.value)
   const start = m.startOf('month').format('YYYY-MM-DD')
   const end = m.endOf('month').format('YYYY-MM-DD')
-  const r = await dashboardApi.incomeReportRange(start, end)
+  const r = await dashboardIncomeReportRange(start, end)
   rows.value = (dimension.value === 'organization' ? r.organizationFeeDetail : r.studentFeeDetail) || []
   settledFee.value = Number(r.settled) || 0
   unsettledFee.value = Number(r.unsettled) || 0
@@ -157,7 +157,7 @@ async function onToggleSettled(r) {
     settled: !!r.settled
   }
   try {
-    await dashboardApi.updateSettlement(payload)
+    await dashboardUpdateSettlement(payload)
     ElMessage.success(r.settled ? '已标记为已结清' : '已标记为未结清')
     // 同步顶部汇总
     const fee = Number(r.fee) || 0

@@ -1,8 +1,7 @@
 import request from '@/utils/request'
 
-export const backupApi = {
-  // 导出：后端返回 JSON 附件（blob 下载）
-  exportData: () => request.post('/backup/export', null, { responseType: 'blob' }),
-  // 导入：全量替换当前用户数据
-  importData: (data) => request.post('/backup/import', data)
-}
+/** 导出数据（后端返回 JSON 附件 blob 下载） */
+export const backupExportData = () => request.post('/backup/export', null, { responseType: 'blob' })
+
+/** 导入数据（全量替换当前用户数据） */
+export const backupImportData = (data) => request.post('/backup/import', data)

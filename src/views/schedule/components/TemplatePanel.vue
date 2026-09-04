@@ -52,7 +52,7 @@
     import { VueDraggable } from "vue-draggable-plus"
     import { durationText, COURSE_COLORS, courseTypeColor } from "@/utils/date"
     import { useMetaStore } from "@/store/meta"
-    import { templateApi } from "@/api/courseTemplate"
+    import { templateList } from "@/api/courseTemplate"
 
     const props = defineProps({ templates: { type: Array, default: () => [] } })
     const emit = defineEmits(["create", "edit", "remove", "clone"])
@@ -69,7 +69,7 @@
             searched.value = null
             return
         }
-        templateApi.list(kw).then((list) => {
+        templateList(kw).then((list) => {
             searched.value = list || []
         })
     }
