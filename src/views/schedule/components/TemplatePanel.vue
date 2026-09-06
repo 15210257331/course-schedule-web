@@ -20,18 +20,20 @@
             ghost-class="dp-ghost"
             chosen-class="dp-chosen"
             drag-class="dp-drag"
+            v-loading="loading"
         >
             <div v-for="t in result" :key="t.id" class="tpl-card" :style="cardStyle(t)" :data-id="t.id">
                 <div class="tpl-body">
-                    <div class="tpl-title">
-                        {{ [t.studentName, t.stage].filter(Boolean).join(" · ") || t.title }}
+                    <div class="tpl-title" :title="titleOf(t)">
+                        {{ titleOf(t) }}
                     </div>
                     <div class="tpl-meta-row">
-                        <span v-if="t.organizationName" class="tpl-pill tpl-pill-org">{{ t.organizationName }}</span>
-                        <span v-if="t.courseType" class="tpl-pill" :style="{ background: courseTypeColor(t.courseType) }">{{ t.courseType }}</span>
+                        <span v-if="t.courseType" class="tpl-pill tpl-pill-type" :title="t.courseType" :style="{ background: courseTypeColor(t.courseType) }">{{ t.courseType }}</span>
+                        <span v-if="t.organizationName" class="tpl-pill tpl-pill-org" :title="t.organizationName">{{ t.organizationName }}</span>
+                        <span v-else-if="isTutor(t)" class="tpl-pill tpl-pill-loc" :title="t.location">{{ t.location }}</span>
                     </div>
-                    <div class="tpl-sub">
-                        {{ [t.subject, durationText(t.durationMinutes)].filter(Boolean).join(" · ") }}
+                    <div class="tpl-sub" :title="subOf(t)">
+                        {{ subOf(t) }}
                     </div>
                 </div>
                 <div class="tpl-actions" @mousedown.stop>
@@ -54,11 +56,15 @@
     import { useMetaStore } from "@/store/meta"
     import { templateList } from "@/api/courseTemplate"
 
-    const props = defineProps({ templates: { type: Array, default: () => [] } })
+    const props = defineProps({
+        templates: { type: Array, default: () => [] },
+        loading: { type: Boolean, default: false }
+    })
     const emit = defineEmits(["create", "edit", "remove", "clone"])
 
     const metaStore = useMetaStore()
     const keyword = ref("")
+    const searching = ref(false)
 
     /* 模板搜索：空关键字用全量列表（父组件传入），有关键字走接口名称模糊查询 */
     const searched = ref(null)
@@ -69,10 +75,16 @@
             searched.value = null
             return
         }
+        searching.value = true
         templateList(kw).then((list) => {
             searched.value = list || []
+        }).finally(() => {
+            searching.value = false
         })
     }
+
+    /* 列表加载态：父级数据加载中，或关键字搜索请求进行中 */
+    const loading = computed(() => props.loading || searching.value)
 
     watch(keyword, (k) => {
         clearTimeout(searchTimer)
@@ -102,6 +114,21 @@
         if (org?.color) return org.color
         if (t.organizationId != null) return COURSE_COLORS[t.organizationId % COURSE_COLORS.length]
         return COURSE_COLORS[(t.id || 0) % COURSE_COLORS.length]
+    }
+
+    /* 家教类型且无机构：课程类型后面展示上课地点 */
+    function isTutor(t) {
+        return t.courseType === '家教' && t.organizationId == null
+    }
+
+    /* 卡片标题：学生姓名 · 学段，无则回退 title */
+    function titleOf(t) {
+        return [t.studentName, t.stage].filter(Boolean).join(" · ") || t.title
+    }
+
+    /* 副标题：科目 · 时长 */
+    function subOf(t) {
+        return [t.subject, durationText(t.durationMinutes)].filter(Boolean).join(" · ")
     }
 
     /* 与日历卡片一致的浅色渐变底 + 细边框 + 强调色变量 */
@@ -227,6 +254,17 @@
                     overflow: hidden;
                     text-overflow: ellipsis;
                     max-width: 100%;
+                }
+                /* 课程类型胶囊不收缩，让出空间给右侧地址 */
+                .tpl-pill-type {
+                    flex-shrink: 0;
+                    max-width: none;
+                }
+                .tpl-pill-loc {
+                    color: var(--color-muted);
+                    background: var(--color-surface);
+                    border: 1px solid var(--color-border);
+                    min-width: 0;
                 }
                 .tpl-sub {
                     margin-top: auto;

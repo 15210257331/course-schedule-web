@@ -52,3 +52,6 @@ export const messageList = (limit = 20) => request.post('/messages/list', { limi
 
 /** 标记某条系统消息为已读 */
 export const messageMarkRead = (id) => request.post('/messages/read', { id })
+
+/** 全部系统消息标记为已读 */
+export const messageMarkAllRead = () => request.post('/messages/read-all')

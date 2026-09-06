@@ -76,12 +76,13 @@
               @click.stop
               @dblclick.stop="emit('courseDblclick', c)"
             >
-              <div class="cb-title">{{ blockTitle(c) }}</div>
+              <div class="cb-title" :title="blockTitle(c)">{{ blockTitle(c) }}</div>
               <div class="cb-meta-row">
-                <span v-if="c.organizationName" class="cb-pill cb-pill-org">{{ c.organizationName }}</span>
-                <span v-if="c.courseType" class="cb-pill" :style="{ background: courseTypeColor(c.courseType) }">{{ c.courseType }}</span>
+                <span v-if="c.courseType" class="cb-pill cb-pill-type" :title="c.courseType" :style="{ background: courseTypeColor(c.courseType) }">{{ c.courseType }}</span>
+                <span v-if="c.organizationName" class="cb-pill cb-pill-org" :title="c.organizationName">{{ c.organizationName }}</span>
+                <span v-else-if="isTutor(c)" class="cb-pill cb-pill-loc" :title="c.location">{{ c.location }}</span>
               </div>
-              <div class="cb-time-row">{{ timeTextOf(c) }}</div>
+              <div class="cb-time-row" :title="timeTextOf(c)">{{ timeTextOf(c) }}</div>
             </div>
           </div>
         </div>
@@ -119,6 +120,7 @@
               :key="c.id"
               class="month-event"
               :style="monthEventStyle(c)"
+              :title="`${timeOf(c).slice(0, 5)} ${c.title}`"
               @dblclick.stop="emit('courseDblclick', c)"
             >
               {{ timeOf(c).slice(0, 5) }} {{ c.title }}
@@ -290,6 +292,11 @@ function timeTextOf(c) {
 /* 卡片标题：学生姓名 · 阶段，都没有回退课程标题 */
 function blockTitle(c) {
   return [c.studentName, c.stage].filter(Boolean).join(' · ') || c.title
+}
+
+/* 家教类型且无机构：课程类型后面展示上课地点 */
+function isTutor(c) {
+  return c.courseType === '家教' && c.organizationId == null
 }
 
 function topOffset(c) {
@@ -570,6 +577,17 @@ defineExpose({
         overflow: hidden;
         text-overflow: ellipsis;
         max-width: 100%;
+      }
+      /* 课程类型胶囊不收缩，让出空间给右侧地址 */
+      .cb-pill-type {
+        flex-shrink: 0;
+        max-width: none;
+      }
+      .cb-pill-loc {
+        color: var(--color-muted);
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        min-width: 0;
       }
       /* 高度分档：compact 隐藏时间行，tiny 只保留标题行 */
       &.cb-compact {

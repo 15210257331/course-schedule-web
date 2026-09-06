@@ -6,6 +6,7 @@
         <h1 class="page-title">课程日历</h1>
         <TemplatePanel
           :templates="templates"
+          :loading="templatesCache.loading.value"
           @create="tplDialogVisible = true"
           @edit="editTemplate"
           @remove="removeTemplate"
@@ -67,7 +68,7 @@
       ref="dialogRef"
       @saved="reload"
     />
-    <CourseTemplateDialog v-model:visible="tplDialogVisible" ref="tplDialogRef" @saved="reloadTemplates" />
+    <CourseTemplateDialog v-model:visible="tplDialogVisible" ref="tplDialogRef" @saved="onTemplateSaved" />
   </div>
 </template>
 
@@ -204,6 +205,12 @@ async function reloadTemplates() {
   }
 }
 
+/* 模板保存后：刷新模板侧栏，并重拉课程，使「同步到已排课程」的改动立刻反映到日历 */
+function onTemplateSaved() {
+  reloadTemplates()
+  reload()
+}
+
 /* 课程表单需要机构数据 */
 async function ensureMeta() {
   try {
@@ -270,12 +277,13 @@ function formatMoney(n) {
 async function confirmRemoveCourse(cid) {
   const c = courses.value.find((x) => x.id === cid)
   if (!c) return
+  const cName = [c.studentName, c.stage].filter(Boolean).join(' · ') || c.title
   // 重复系列的父课（删除父课后端会级联删掉整个系列）提示文案不同；单节也先确认再删
   const isSeries = !!c.repeatType && c.repeatType !== 'none'
   const ok = await ElMessageBox.confirm(
     isSeries
-      ? `「${c.title}」是重复排课的系列课程，删除后将同时移除该系列的全部课程，确定吗？`
-      : `确定删除「${c.title}」这节课吗？`,
+      ? `「${cName}」是重复排课的系列课程，删除后将同时移除该系列的全部课程，确定吗？`
+      : `确定删除「${cName}」这节课吗？`,
     '删除课程',
     { type: 'warning', confirmButtonText: isSeries ? '删除全部' : '删除', cancelButtonText: '取消' }
   ).then(() => true).catch(() => false)
@@ -291,10 +299,24 @@ async function editTemplate(t) {
   await tplDialogRef.value?.openForEdit(t)
 }
 async function removeTemplate(t) {
-  await ElMessageBox.confirm(`确定删除模板「${t.title}」吗？`, '提示', { type: 'warning' })
-  await templateRemove(t.id)
-  ElMessage.success('删除成功')
+  const tplName = [t.studentName, t.stage].filter(Boolean).join(' · ') || t.title
+  const ok = await ElMessageBox.confirm(
+    `确定删除模板「${tplName}」吗？\n\n若勾选“同时删除”，将一并删除该模板已排出的所有课程。`,
+    '删除模板',
+    {
+      type: 'warning',
+      confirmButtonText: '同时删除课程',
+      cancelButtonText: '仅删除模板',
+      distinguishCancelAndClose: true,
+    }
+  )
+    .then(() => 'withCourses')
+    .catch((action) => (action === 'cancel' ? 'onlyTemplate' : null))
+  if (!ok) return
+  const removed = await templateRemove(t.id, ok === 'withCourses')
+  ElMessage.success(ok === 'withCourses' ? `已删除模板「${tplName}」及其 ${removed} 节课程` : `已删除模板「${tplName}」`)
   reloadTemplates()
+  reload()
 }
 
 /* 拖拽克隆：把模板数据挂到克隆元素上，落点处读取 */
@@ -378,6 +400,9 @@ async function scheduleTemplate(tpl, date, minute) {
   if (tpl.repeatType) {
     payload.repeatType = tpl.repeatType
     payload.repeatEndDate = dayjs(date).endOf('month').format('YYYY-MM-DD')
+  }
+  if (tpl.id != null) {
+    payload.templateId = tpl.id
   }
   try {
     await courseCreate(payload)

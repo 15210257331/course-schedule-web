@@ -12,5 +12,6 @@ export const templateCreate = (data) => request.post('/course-templates', data)
 /** 编辑课程模板 */
 export const templateUpdate = (id, data) => request.put(`/course-templates/${id}`, data)
 
-/** 删除课程模板 */
-export const templateRemove = (id) => request.delete(`/course-templates/${id}`)
+/** 删除课程模板（withCourses=true 时连带删除该模板排出的课程） */
+export const templateRemove = (id, withCourses = false) =>
+  request.delete(`/course-templates/${id}`, { data: { withCourses } })

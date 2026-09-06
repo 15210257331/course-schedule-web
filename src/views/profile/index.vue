@@ -50,7 +50,7 @@
       </el-col>
 
       <el-col :span="14">
-        <el-card class="mb-16">
+        <el-card>
           <h3 class="card-title">修改密码</h3>
           <el-form ref="pwdRef" :model="pwd" :rules="pwdRules" label-width="80px" style="max-width: 420px">
             <el-form-item label="原密码" prop="oldPassword">
@@ -65,22 +65,6 @@
             <el-button type="primary" :loading="savingPwd" @click="savePassword">修改密码</el-button>
           </el-form>
         </el-card>
-
-        <el-card>
-          <h3 class="card-title">数据管理</h3>
-          <p class="text-muted mb-16">
-            本地缓存了业务快照以加速启动。清除后可强制从服务器重新拉取最新数据。
-          </p>
-          <div class="data-actions">
-            <el-button type="warning" :icon="Delete" @click="clearCache">清除本地缓存</el-button>
-            <el-button :icon="Download" :loading="exporting" @click="exportBackup">导出数据备份</el-button>
-            <el-button :icon="Upload" :loading="importing" @click="triggerImport">导入数据备份</el-button>
-          </div>
-          <p class="text-muted field-tip">
-            导出会生成一份 JSON 备份文件；导入将用该文件内容覆盖服务器上的全部数据，请谨慎操作。
-          </p>
-          <input ref="fileInput" type="file" accept=".json,application/json" style="display: none" @change="onImportFile" />
-        </el-card>
       </el-col>
     </el-row>
   </div>
@@ -89,22 +73,16 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Delete, Upload, Download } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 import { authProfile, authUpdateProfile, authUpdatePassword } from '@/api/auth'
 import { uploadAvatar } from '@/api/upload'
-import { backupExportData, backupImportData } from '@/api/backup'
 import { useAuthStore } from '@/store/auth'
-import { idb } from '@/utils/idb'
 
 const authStore = useAuthStore()
 const router = useRouter()
 const saving = ref(false)
 const savingPwd = ref(false)
 const pwdRef = ref()
-const exporting = ref(false)
-const importing = ref(false)
-const fileInput = ref()
 
 const form = reactive({ nickname: '', avatar: '', email: '', phone: '', subjects: [] })
 const SUBJECT_OPTIONS = ['语文', '数学', '英语', '物理', '化学', '生物', '历史', '地理', '政治', '道法']
@@ -166,65 +144,6 @@ async function savePassword() {
     }, 800)
   } finally {
     savingPwd.value = false
-  }
-}
-
-async function clearCache() {
-  await ElMessageBox.confirm('确定清除本地缓存吗？', '提示', { type: 'warning' })
-  await idb.clear()
-  ElMessage.success('已清除，将在下次访问时重新同步')
-}
-
-async function exportBackup() {
-  exporting.value = true
-  try {
-    const blob = await backupExportData()
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `teacheros-backup-${new Date().toISOString().slice(0, 10)}.json`
-    document.body.appendChild(a)
-    a.click()
-    a.remove()
-    URL.revokeObjectURL(url)
-    ElMessage.success('备份已导出')
-  } finally {
-    exporting.value = false
-  }
-}
-
-function triggerImport() {
-  fileInput.value?.click()
-}
-
-async function onImportFile(e) {
-  const file = e.target.files?.[0]
-  e.target.value = ''
-  if (!file) return
-  try {
-    const text = await file.text()
-    let data
-    try {
-      data = JSON.parse(text)
-    } catch (err) {
-      ElMessage.error('文件不是有效的 JSON 备份')
-      return
-    }
-    await ElMessageBox.confirm(
-      '导入将覆盖服务器上的全部数据（机构、模板、课程、提醒、设置），且不可撤销。确定继续吗？',
-      '导入备份',
-      { type: 'warning', confirmButtonText: '覆盖导入', confirmButtonClass: 'el-button--danger' }
-    )
-    importing.value = true
-    try {
-      const count = await backupImportData(data)
-      ElMessage.success(`导入成功，共恢复 ${count ?? 0} 条课程`)
-      await idb.clear()
-    } finally {
-      importing.value = false
-    }
-  } catch (err) {
-    /* 用户取消或 request 拦截器已提示 */
   }
 }
 

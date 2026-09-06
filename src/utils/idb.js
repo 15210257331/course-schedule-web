@@ -3,7 +3,7 @@
  * 资源拆分：courses（按时间范围）/ organizations / courseTemplates 独立存取。
  *
  * 当前已通过全局设置控制开关：所有 load* 优先走本地缓存，过期或缺失时回源接口。
- * 开关由 localCacheEnabled() 读取 localStorage 的 'teac_idb_cache'（默认开启），可在系统设置中切换。
+ * 开关由 localCacheEnabled() 读取 localStorage 的 'teac_idb_cache'（默认关闭），可在系统设置中切换。
  */
 const DB_NAME = 'teac_os'
 const DB_VERSION = 2
@@ -11,12 +11,12 @@ const STORE = 'resources'
 const CACHE_TTL = 5 * 60 * 1000
 const CACHE_KEY = 'teac_idb_cache'
 
-/** 本地缓存开关：默认开启，可在系统设置中关闭 */
+/** 本地缓存开关：默认关闭，需在系统设置中显式开启 */
 export function localCacheEnabled() {
   try {
-    return localStorage.getItem(CACHE_KEY) !== 'false'
+    return localStorage.getItem(CACHE_KEY) === 'true'
   } catch (e) {
-    return true
+    return false
   }
 }
 

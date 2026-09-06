@@ -103,7 +103,7 @@
 
 <script setup>
     import { computed, reactive, ref, watch } from "vue"
-    import { ElMessage } from "element-plus"
+    import { ElMessage, ElMessageBox } from "element-plus"
     import { QuestionFilled } from "@element-plus/icons-vue"
     import { templateCreate, templateUpdate } from "@/api/courseTemplate"
     import { authProfile } from "@/api/auth"
@@ -234,11 +234,24 @@
                 repeatType: form.repeatType || null,
             }
             if (form.id) {
-                await templateUpdate(form.id, payload)
+                // 编辑模板：询问是否同步到该模板已排出的课程
+                let syncCourses = false
+                try {
+                    await ElMessageBox.confirm(
+                        '是否将本次修改同步到该模板已排出的课程？\n\n同步后，已排课程的学生、机构、科目、学段、课程类型、地点与备注将一并更新（不改变课程时间）。',
+                        '同步课程',
+                        { type: 'info', confirmButtonText: '同步到已排课程', cancelButtonText: '仅修改模板' }
+                    )
+                    syncCourses = true
+                } catch (e) {
+                    syncCourses = false
+                }
+                await templateUpdate(form.id, { ...payload, syncCourses })
+                ElMessage.success(syncCourses ? '保存成功，已同步到已排课程' : '保存成功')
             } else {
                 await templateCreate(payload)
+                ElMessage.success('保存成功')
             }
-            ElMessage.success("保存成功")
             emit("update:visible", false)
             emit("saved")
         } catch (e) {

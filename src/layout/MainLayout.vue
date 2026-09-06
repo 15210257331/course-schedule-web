@@ -221,7 +221,7 @@
     import { User, Setting, SwitchButton } from "@element-plus/icons-vue"
     import { useAuthStore } from "@/store/auth"
     import { notificationList, notificationDue, notificationMarkRead, notificationMarkAllRead, notificationRemove } from "@/api/notification"
-    import { messageList, messageMarkRead } from "@/api/admin"
+    import { messageList, messageMarkRead, messageMarkAllRead } from "@/api/admin"
     import { settingList } from "@/api/setting"
     import { authProfile } from "@/api/auth"
     import { coursePage } from "@/api/course"
@@ -334,7 +334,9 @@
 
     async function markAllRead() {
         await notificationMarkAllRead()
+        await messageMarkAllRead()
         loadNotifications()
+        loadMessages()
     }
 
     /* 点击提醒：标记已读并跳转对应课程（课程表日视图） */

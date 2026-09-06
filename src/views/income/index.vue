@@ -4,13 +4,9 @@
     <div class="fee-head">
       <div>
         <h2 class="page-title">费用详情</h2>
-        <p class="text-muted" style="margin: 4px 0 0">{{ dimLabel }} × 课程数 = 费用</p>
+        <p class="text-muted" style="margin: 4px 0 0">机构 × 课程数 = 费用</p>
       </div>
       <div class="fee-head-controls">
-        <el-radio-group v-model="dimension" @change="loadReport">
-          <el-radio-button value="organization">机构</el-radio-button>
-          <el-radio-button value="student">学生</el-radio-button>
-        </el-radio-group>
         <el-date-picker
           v-model="month"
           type="month"
@@ -25,12 +21,10 @@
 
     <!-- 汇总 -->
     <div class="fee-total card">
-      <span class="text-muted">{{ monthLabel }} · 共 {{ rows.length }}{{ dimUnit }} · {{ totalCourses }} 节课</span>
+      <span class="text-muted">{{ monthLabel }} · 共 {{ rows.length }} 个机构 · {{ totalCourses }} 节课</span>
       <div class="fee-total-right">
-        <template v-if="dimension === 'organization'">
-          <span class="settle-chip settle-chip--done">已结清 ¥{{ formatMoney(settledFee) }}</span>
-          <span class="settle-chip settle-chip--due">未结清 ¥{{ formatMoney(unsettledFee) }}</span>
-        </template>
+        <span class="settle-chip settle-chip--done">已结清 ¥{{ formatMoney(settledFee) }}</span>
+        <span class="settle-chip settle-chip--due">未结清 ¥{{ formatMoney(unsettledFee) }}</span>
         <span class="fee-total-value">¥{{ formatMoney(totalFee) }}</span>
       </div>
     </div>
@@ -39,19 +33,25 @@
     <div class="card">
       <div class="card-head">
         <h3 class="card-title">明细列表</h3>
-        <span class="text-muted">{{ dimension === 'student' ? '同机构归组，组内按费用降序' : '按费用降序' }}</span>
+        <span class="text-muted">按费用降序</span>
       </div>
       <div v-if="rows.length" class="fee-list">
         <div v-for="(r, i) in rows" :key="i" class="fee-item">
           <div class="fee-item-top">
             <span class="fee-rank">{{ i + 1 }}</span>
-            <span class="fee-name">
-              <span class="fee-name-text">{{ r.name || '未分类' }}</span>
-              <span v-for="(s, i) in subTags(r)" :key="i" class="fee-sub" :style="tagStyle(s)">{{ s }}</span>
-            </span>
-            <span class="fee-count">{{ formula(r) }}</span>
+            <div class="fee-main">
+              <span class="fee-name">
+                <span class="fee-name-text">{{ r.name || '未分类' }}</span>
+              </span>
+              <!-- 每个学生标签后跟费用计算，排在机构右侧，横向排列，数据多时折行 -->
+              <div v-if="orgStudentItems(r).length" class="fee-students">
+                <span v-for="(s, si) in orgStudentItems(r)" :key="si" class="fee-student">
+                  <span class="fee-student-tag" :style="s.style">{{ s.name }}</span>
+                  <span class="fee-student-formula">{{ s.formula }}</span>
+                </span>
+              </div>
+            </div>
             <el-switch
-              v-if="dimension === 'organization'"
               v-model="r.settled"
               size="small"
               inline-prompt
@@ -80,13 +80,12 @@ import { formatMoney, dayjs } from '@/utils/date'
 
 /* 默认选中上月，统计该月整月数据 */
 const month = ref(dayjs().subtract(1, 'month').format('YYYY-MM'))
-const dimension = ref('organization')
 const rows = ref([])
 const settledFee = ref(0)
 const unsettledFee = ref(0)
+/* 机构维度下，每个机构内各学生的费用明细（用于在机构行下展开「N节 × 单价」） */
+const orgStudentDetail = ref([])
 
-const dimLabel = computed(() => (dimension.value === 'organization' ? '机构' : '学生'))
-const dimUnit = computed(() => (dimension.value === 'organization' ? '个机构' : '名学生'))
 const monthLabel = computed(() => dayjs(month.value).format('YYYY年M月'))
 const totalCourses = computed(() => rows.value.reduce((s, r) => s + (Number(r.courseCount) || 0), 0))
 const totalFee = computed(() => rows.value.reduce((s, r) => s + (Number(r.fee) || 0), 0))
@@ -100,12 +99,34 @@ function formula(r) {
   return `${cnt}节 × ${unit} = ${fee}`
 }
 
-/* 机构维度返回学生名数组（一个学生一个标签），学生维度返回机构名单标签 */
+/* 机构行下的学生名标签（一个学生一个标签） */
 function subTags(r) {
-  if (dimension.value === 'organization') {
-    return (r.studentNames || '').split('·').filter(Boolean)
-  }
-  return r.organizationName ? [r.organizationName] : []
+  return (r.studentNames || '').split('·').filter(Boolean)
+}
+
+/* 取该机构行对应的学生级费用明细（排除家教列，因为家教在机构维度是独立行） */
+function orgStudentsOf(r) {
+  if (r.targetType === 'tutor') return []
+  return orgStudentDetail.value.filter(
+    (d) => (d.organizationName || '未分类') === (r.name || '未分类')
+  )
+}
+
+/* 每个学生 = 标签 + 费用计算，按明细数据组装（数据缺失时回退到学生名标签） */
+function orgStudentItems(r) {
+  const detail = orgStudentsOf(r)
+  const detailMap = new Map(detail.map((d) => [d.studentName, d]))
+  const names = detail.length
+    ? detail.map((d) => d.studentName)
+    : subTags(r)
+  return names.map((name) => {
+    const d = detailMap.get(name)
+    return {
+      name: name || '未分类',
+      formula: d ? formula(d) : '',
+      style: tagStyle(name || '未分类')
+    }
+  })
 }
 
 /* 标签配色：按名称哈希取色，同名稳定同色、不同名不同色 */
@@ -143,7 +164,8 @@ async function loadReport() {
   const start = m.startOf('month').format('YYYY-MM-DD')
   const end = m.endOf('month').format('YYYY-MM-DD')
   const r = await dashboardIncomeReportRange(start, end)
-  rows.value = (dimension.value === 'organization' ? r.organizationFeeDetail : r.studentFeeDetail) || []
+  rows.value = r.organizationFeeDetail || []
+  orgStudentDetail.value = r.organizationStudentDetail || []
   settledFee.value = Number(r.settled) || 0
   unsettledFee.value = Number(r.unsettled) || 0
 }
@@ -181,8 +203,7 @@ function csvCell(v) {
 }
 
 function exportCsv() {
-  const isOrg = dimension.value === 'organization'
-  const head = ['排名', '名称', isOrg ? '学生' : '机构', '课程数', '单价(元)', '费用(元)']
+  const head = ['排名', '名称', '学生', '课程数', '单价(元)', '费用(元)']
   const lines = [head.join(',')]
   rows.value.forEach((r, i) => {
     const cnt = Number(r.courseCount) || 0
@@ -192,19 +213,18 @@ function exportCsv() {
       [
         i + 1,
         r.name || '未分类',
-        isOrg ? (r.studentNames || '') : (r.organizationName || ''),
+        r.studentNames || '',
         cnt,
         unit,
         fee.toFixed(2)
       ].map(csvCell).join(',')
     )
   })
-  const label = isOrg ? '机构' : '学生'
   const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `费用明细-${month.value}-${label}.csv`
+  a.download = `费用明细-${month.value}-机构.csv`
   a.click()
   URL.revokeObjectURL(url)
 }
@@ -331,17 +351,24 @@ onMounted(() => {
     flex-shrink: 0;
   }
 
-  .fee-name {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--color-ink);
+  .fee-main {
     flex: 1;
     min-width: 0;
     display: flex;
     align-items: center;
     flex-wrap: wrap;
+    gap: 4px 14px;
+  }
+
+  .fee-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-ink);
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
     gap: 6px;
-    overflow: hidden;
+    min-width: 0;
 
     .fee-name-text {
       white-space: nowrap;
@@ -349,22 +376,6 @@ onMounted(() => {
       text-overflow: ellipsis;
       flex-shrink: 1;
     }
-
-    .fee-sub {
-      font-size: 12px;
-      font-weight: 500;
-      padding: 1px 8px;
-      border-radius: 999px;
-      white-space: nowrap;
-      flex-shrink: 0;
-    }
-  }
-
-  .fee-count {
-    font-size: 12px;
-    color: var(--color-muted);
-    font-variant-numeric: tabular-nums;
-    flex-shrink: 0;
   }
 
   .fee-amount {
@@ -375,6 +386,32 @@ onMounted(() => {
     flex-shrink: 0;
     min-width: 88px;
     text-align: right;
+  }
+
+  /* 学生费用明细：紧随机构名称右侧横向排列，数据多时折行 */
+  .fee-students {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+  }
+
+  .fee-student {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+
+    .fee-student-tag {
+      font-weight: 500;
+      padding: 1px 8px;
+      border-radius: 999px;
+    }
+
+    .fee-student-formula {
+      color: var(--color-muted);
+    }
   }
 
   .fee-bar {
