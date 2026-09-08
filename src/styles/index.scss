@@ -412,8 +412,10 @@ a {
 }
 
 // 拖拽中跟随光标的元素
+// 注意：不要在这里写 transform。Sortable 排序时会用内联 transform: translate3d()/translateZ(0)
+// 做位移动画，若此处再写 transform（如 rotate）会被内联样式覆盖、动画结束又恢复，
+// 导致卡片在拖动过程中反复「旋转→回正」闪烁。
 .dp-drag {
-  transform: rotate(2deg);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18) !important;
   opacity: 0.95 !important;
   cursor: grabbing !important;

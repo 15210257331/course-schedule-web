@@ -390,7 +390,6 @@ async function scheduleTemplate(tpl, date, minute) {
     startTime: start.format('YYYY-MM-DDTHH:mm:ss'),
     endTime: end.format('YYYY-MM-DDTHH:mm:ss'),
     fee: tpl.fee,
-    feeManual: !!tpl.feeManual,
     location: tpl.location,
     note: tpl.note,
     status: 'scheduled',
@@ -479,7 +478,10 @@ function startDrag(e, c) {
     if (key !== hoverKey) {
       hoverKey = key
       if (snapped == null) calendarRef.value?.setHoverSlot?.(null, null)
-      else calendarRef.value?.setHoverSlot?.(pos.index, Math.floor(snapped / 60))
+      else {
+        const conflict = hasConflict(st.cid, pos.date, snapped, st.dur)
+        calendarRef.value?.setHoverSlot?.(pos.index, Math.floor(snapped / 60), conflict)
+      }
     }
   }
 
@@ -511,6 +513,10 @@ function startDrag(e, c) {
     }
     const snapped = snapMinutes(pos.minute, durMin)
     if (snapped != null) {
+      if (hasConflict(cid, pos.date, snapped, durMin)) {
+        ElMessage.warning('该时间段已有课程，无法移动到这里')
+        return
+      }
       const newStart = dayjs(pos.date).add(snapped, 'minute').format('YYYY-MM-DDTHH:mm:ss')
       const newEnd = dayjs(newStart).add(durMin, 'minute').format('YYYY-MM-DDTHH:mm:ss')
       try {
@@ -544,6 +550,19 @@ function snapMinutes(minute, dur) {
     }
   }
   return null
+}
+
+/* 目标时段是否与已有课程重叠（排除被拖动的课程自身） */
+function hasConflict(cid, date, startMinute, durMin) {
+  if (!durMin) return false
+  const start = dayjs(`${date}T00:00:00`).add(startMinute, 'minute').valueOf()
+  const end = start + durMin * 60000
+  return courses.value.some((c) => {
+    if (c.id === cid) return false
+    const cs = dayjs(c.startTime).valueOf()
+    const ce = dayjs(c.endTime).valueOf()
+    return cs < end && ce > start
+  })
 }
 
 /* 拖动跟随幽灵块：与课程卡片同款浅色渐变底 + 细边框 */

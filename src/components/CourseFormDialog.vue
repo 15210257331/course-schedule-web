@@ -240,8 +240,8 @@ function initForm() {
 async function submit() {
   await formRef.value.validate()
   saving.value = true
-  /* 课程标题已下沉为自动生成：科目 + 类型，如「数学一对一」，兜底学生姓名 */
-  const title = [form.subject, form.courseType].filter(Boolean).join('') || form.studentName || '课程'
+  /* 课程标题：学生姓名 + 科目 + 课程类型（如「张三数学一对一」） */
+  const title = [form.studentName, form.subject, form.courseType].filter(Boolean).join('') || '课程'
   const feeValue = form.fee === '' || form.fee == null ? null : form.fee
   const payload = {
     title,
@@ -253,7 +253,6 @@ async function submit() {
     startTime: form.startTime,
     endTime: form.endTime,
     fee: feeValue,
-    feeManual: feeValue != null,
     location: form.location,
     note: form.note,
     status: form.status || 'scheduled',

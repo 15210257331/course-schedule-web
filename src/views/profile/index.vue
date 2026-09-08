@@ -24,9 +24,6 @@
             <el-form-item label="昵称">
               <el-input v-model="form.nickname" />
             </el-form-item>
-            <el-form-item label="头像 URL">
-              <el-input v-model="form.avatar" placeholder="https://..." />
-            </el-form-item>
             <el-form-item label="邮箱">
               <el-input v-model="form.email" />
             </el-form-item>

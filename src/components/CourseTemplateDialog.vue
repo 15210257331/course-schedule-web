@@ -158,7 +158,6 @@
         fee: defaultFee.value,
         location: "",
         note: "",
-        color: null,
         repeatType: "",
     })
 
@@ -217,7 +216,8 @@
         saving.value = true
         try {
             /* 新输入的学生姓名：先建档（机构与模板保持一致） */
-            const title = [form.subject, form.courseType].filter(Boolean).join("") || form.studentName || "课程模板"
+            /* 模板标题：学生姓名 + 科目 + 课程类型（如「张三数学一对一」） */
+            const title = [form.studentName, form.subject, form.courseType].filter(Boolean).join("") || "课程模板"
             const payload = {
                 title,
                 studentName: form.studentName,
@@ -227,10 +227,8 @@
                 courseType: form.courseType || null,
                 durationMinutes: form.durationMinutes,
                 fee: form.fee ?? null,
-                feeManual: form.fee != null,
                 location: form.location || null,
                 note: form.note || null,
-                color: null,
                 repeatType: form.repeatType || null,
             }
             if (form.id) {
@@ -274,7 +272,6 @@
             fee: tpl.fee != null ? Number(tpl.fee) : defaultFee.value,
             location: tpl.location || "",
             note: tpl.note || "",
-            color: tpl.color || null,
             repeatType: tpl.repeatType || "",
         })
     }

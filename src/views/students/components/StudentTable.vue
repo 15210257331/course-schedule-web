@@ -42,11 +42,10 @@ defineProps({
 
 const metaStore = useMetaStore()
 
-/* 机构标签色：机构维护了 color 用机构色，否则按模板 color，再按机构 id / 模板 id 稳定取色（与日历一致） */
+/* 机构标签色：机构维护了 color 用机构色，否则按模板 id 稳定取色（与日历一致） */
 function orgColor(row) {
   const org = row.organizationId != null ? metaStore.orgMap[row.organizationId] : null
   if (org?.color) return org.color
-  if (row.color) return row.color
   if (row.organizationId != null) return COURSE_COLORS[row.organizationId % COURSE_COLORS.length]
   return COURSE_COLORS[(row.id || 0) % COURSE_COLORS.length]
 }

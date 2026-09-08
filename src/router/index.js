@@ -50,6 +50,12 @@ const routes = [
         meta: { title: '费用详情' }
       },
       {
+        path: 'attachments',
+        name: 'attachments',
+        component: () => import('@/views/attachments/index.vue'),
+        meta: { title: '附件管理' }
+      },
+      {
         path: 'profile',
         name: 'profile',
         component: () => import('@/views/profile/index.vue'),

@@ -11,7 +11,7 @@
         </div>
         <el-input v-model="keyword" placeholder="搜索模板" clearable size="small" :prefix-icon="Search" class="tp-search" />
         <VueDraggable
-            :model-value="templates"
+            :model-value="result"
             class="tpl-list"
             :animation="150"
             :group="{ name: 'courses', pull: 'clone', put: false }"
@@ -76,8 +76,8 @@
             return
         }
         searching.value = true
-        templateList(kw).then((list) => {
-            searched.value = list || []
+        templateList(kw).then((res) => {
+            searched.value = res || []
         }).finally(() => {
             searching.value = false
         })

@@ -44,12 +44,13 @@
               class="slot-cell"
               :class="{
                 disabled: s.disabled,
-                'drop-hover': dragActive && !s.disabled && hoverSlot && hoverSlot.col === di && hoverSlot.hour === s.hour
+                'drop-hover': dragActive && !s.disabled && hoverSlot && hoverSlot.col === di && hoverSlot.hour === s.hour && !hoverSlot.conflict,
+                'drop-conflict': dragActive && !s.disabled && hoverSlot && hoverSlot.col === di && hoverSlot.hour === s.hour && hoverSlot.conflict
               }"
               :style="slotCellStyle(s)"
             >
               <span v-if="dragActive && !s.disabled && hoverSlot && hoverSlot.col === di && hoverSlot.hour === s.hour" class="slot-hint">
-                松手排课到这里
+                {{ hoverSlot.conflict ? '该时间段已有课程' : '松手排课到这里' }}
               </span>
             </div>
             <VueDraggable
@@ -348,8 +349,8 @@ defineExpose({
   PX_PER_MIN,
   BLOCK_GAP,
   locateCourse,
-  setHoverSlot(col, hour) {
-    hoverSlot.value = col == null || hour == null ? null : { col, hour }
+  setHoverSlot(col, hour, conflict) {
+    hoverSlot.value = col == null || hour == null ? null : { col, hour, conflict: !!conflict }
   },
   setDragActive(v) {
     dragActive.value = !!v
@@ -496,6 +497,25 @@ defineExpose({
           font-weight: 600;
           color: var(--color-primary);
           background: rgba(99, 91, 255, 0.08);
+          border-radius: 999px;
+          padding: 1px 10px;
+          pointer-events: none;
+        }
+      }
+      &.drop-conflict {
+        box-shadow: inset 0 0 0 1.5px var(--color-danger);
+        background: rgba(223, 27, 65, 0.06);
+        border-radius: 6px;
+        z-index: 1;
+        cursor: not-allowed;
+        .slot-hint {
+          position: absolute;
+          left: 6px;
+          top: 5px;
+          font-size: 11px;
+          font-weight: 600;
+          color: var(--color-danger);
+          background: rgba(223, 27, 65, 0.1);
           border-radius: 999px;
           padding: 1px 10px;
           pointer-events: none;

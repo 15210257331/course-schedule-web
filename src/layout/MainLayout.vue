@@ -249,6 +249,7 @@
             { name: "courses", title: "课程管理" },
             { name: "students", title: "学生管理" },
             { name: "organizations", title: "机构管理" },
+            { name: "attachments", title: "附件" },
             { name: "income", title: "收入" },
         ]
     })
