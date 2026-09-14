@@ -128,7 +128,7 @@
                                         v-if="item.kind === 'reminder'"
                                         class="notify-del"
                                         title="删除提醒"
-                                        @click.stop="removeNotification(item.raw)"
+                                        @click.stop="removeCourseMessage(item.raw)"
                                     >
                                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12" />
@@ -220,7 +220,7 @@
     import { ElMessageBox } from "element-plus"
     import { User, Setting, SwitchButton } from "@element-plus/icons-vue"
     import { useAuthStore } from "@/store/auth"
-    import { notificationList, notificationDue, notificationMarkRead, notificationMarkAllRead, notificationRemove } from "@/api/notification"
+    import { courseMessageList, courseMessageDue, courseMessageMarkRead, courseMessageMarkAllRead, courseMessageRemove } from "@/api/courseMessage"
     import { messageList, messageMarkRead, messageMarkAllRead } from "@/api/admin"
     import { settingList } from "@/api/setting"
     import { authProfile } from "@/api/auth"
@@ -241,6 +241,8 @@
                 { name: "adminDashboard", title: "数据看板" },
                 { name: "adminTeachers", title: "教师管理" },
                 { name: "adminMessages", title: "消息推送" },
+                { name: "adminLogs", title: "操作日志" },
+                { name: "adminBackup", title: "数据备份" },
             ]
         }
         return [
@@ -249,7 +251,6 @@
             { name: "courses", title: "课程管理" },
             { name: "students", title: "学生管理" },
             { name: "organizations", title: "机构管理" },
-            { name: "attachments", title: "附件" },
             { name: "income", title: "收入" },
         ]
     })
@@ -297,27 +298,27 @@
     const mobileOpen = ref(false)
 
     // ---------- 提醒 ----------
-    const notifications = ref([])
+    const courseMessages = ref([])
     const messages = ref([])
-    const unreadCount = computed(() => notifications.value.filter(n => !n.isRead).length + messages.value.filter(m => !m.isRead).length)
+    const unreadCount = computed(() => courseMessages.value.filter(n => !n.isRead).length + messages.value.filter(m => !m.isRead).length)
 
     /* 合并提醒与系统消息，按时间倒序展示（去掉 tab 后的统一列表） */
     const notifyFeed = computed(() => {
         const items = [
-            ...notifications.value.map(n => ({ kind: "reminder", raw: n, key: `r-${n.id}`, time: n.remindAt || n.createdAt })),
+            ...courseMessages.value.map(n => ({ kind: "reminder", raw: n, key: `r-${n.id}`, time: n.remindAt || n.createdAt })),
             ...messages.value.map(m => ({ kind: "message", raw: m, key: `m-${m.id}`, time: m.createdAt })),
         ]
         return items.sort((a, b) => dayjs(b.time || 0).valueOf() - dayjs(a.time || 0).valueOf())
     })
 
     function openFeedItem(item) {
-        if (item.kind === "reminder") openNotification(item.raw)
+        if (item.kind === "reminder") openCourseMessage(item.raw)
         else openMessage(item.raw)
     }
 
-    async function loadNotifications() {
+    async function loadCourseMessages() {
         try {
-            notifications.value = await notificationList(20)
+            courseMessages.value = await courseMessageList(20)
         } catch (e) {
             /* 静默 */
         }
@@ -334,17 +335,17 @@
     }
 
     async function markAllRead() {
-        await notificationMarkAllRead()
+        await courseMessageMarkAllRead()
         await messageMarkAllRead()
-        loadNotifications()
+        loadCourseMessages()
         loadMessages()
     }
 
     /* 点击提醒：标记已读并跳转对应课程（课程表日视图） */
-    async function openNotification(n) {
+    async function openCourseMessage(n) {
         if (!n.isRead) {
             try {
-                await notificationMarkRead(n.id)
+                await courseMessageMarkRead(n.id)
             } catch (e) {
                 /* 忽略 */
             }
@@ -352,13 +353,13 @@
         //if (n.courseId != null) {
         //  router.push({ name: 'schedule', query: { course: n.courseId } })
         // }
-        await loadNotifications()
+        await loadCourseMessages()
     }
 
-    async function removeNotification(n) {
+    async function removeCourseMessage(n) {
         try {
-            await notificationRemove(n.id)
-            await loadNotifications()
+            await courseMessageRemove(n.id)
+            await loadCourseMessages()
         } catch (e) {
             /* 静默 */
         }
@@ -484,7 +485,7 @@
     }
     async function pollDueReminders() {
         try {
-            const due = await notificationDue()
+            const due = await courseMessageDue()
             if (!due || !due.length) return
             let settings = {}
             try {
@@ -496,10 +497,10 @@
             if (browserNotify && (await requestNotifyPermission())) {
                 for (const n of due) {
                     new Notification(n.title || "课程提醒", { body: n.content })
-                    await notificationMarkRead(n.id)
+                    await courseMessageMarkRead(n.id)
                 }
             }
-            loadNotifications()
+            loadCourseMessages()
         } catch (e) {
             /* 静默 */
         }
@@ -508,7 +509,7 @@
     onMounted(() => {
         /* 管理员：无提醒中心/课程轮询，无需加载教师端数据 */
         if (!isAdmin.value) {
-            loadNotifications()
+            loadCourseMessages()
             loadMessages()
             reminderTimer = setInterval(pollDueReminders, 60_000)
         }

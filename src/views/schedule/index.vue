@@ -6,7 +6,7 @@
         <h1 class="page-title">课程日历</h1>
         <TemplatePanel
           :templates="templates"
-          :loading="templatesCache.loading.value"
+          :loading="templatesLoading"
           @create="tplDialogVisible = true"
           @edit="editTemplate"
           @remove="removeTemplate"
@@ -77,11 +77,10 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import dayjs from 'dayjs'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { courseDetail, courseCreate, courseRemove, courseMove, courseCopyWeek } from '@/api/course'
-import { templateRemove } from '@/api/courseTemplate'
+import { courseDetail, courseCreate, courseRemove, courseMove, courseCopyWeek, courseList } from '@/api/course'
+import { templateRemove, templateList } from '@/api/courseTemplate'
+import { organizationList } from '@/api/organization'
 import { useMetaStore } from '@/store/meta'
-import { loadCourses, loadCourseTemplates, loadOrganizations } from '@/utils/idb'
-import { useCache } from '@/composables/useCache'
 import { weekDays, mondayOf, toMinutes, COURSE_COLORS } from '@/utils/date'
 import CourseFormDialog from '@/components/CourseFormDialog.vue'
 import CourseTemplateDialog from '@/components/CourseTemplateDialog.vue'
@@ -100,11 +99,10 @@ const calendarRef = ref()
 
 const metaStore = useMetaStore()
 
-/* 课程 / 模板数据：useCache 组合式（本地缓存 + 响应式 data/loading + 强制刷新） */
-const coursesCache = useCache(loadCourses, [])
-const templatesCache = useCache(loadCourseTemplates, [])
-const courses = computed(() => coursesCache.data.value)
-const templates = computed(() => templatesCache.data.value)
+/* 课程 / 模板数据：直连接口加载 */
+const courses = ref([])
+const templates = ref([])
+const templatesLoading = ref(false)
 
 /* 课程模板侧栏 */
 const tplDialogVisible = ref(false)
@@ -176,7 +174,7 @@ async function reload() {
   const start = rangeStart()
   const end = rangeEnd()
   try {
-    await coursesCache.load(start.format('YYYY-MM-DDTHH:mm:ss'), end.format('YYYY-MM-DDTHH:mm:ss'))
+    courses.value = await courseList(start.format('YYYY-MM-DDTHH:mm:ss'), end.format('YYYY-MM-DDTHH:mm:ss'))
   } catch (e) {
     /* 忽略 */
   }
@@ -197,11 +195,14 @@ async function locateCourse(courseId) {
 }
 
 async function reloadTemplates() {
+  templatesLoading.value = true
   try {
-    await templatesCache.load()
+    templates.value = await templateList()
     metaStore.setCourseTemplates(templates.value)
   } catch (e) {
     /* 忽略 */
+  } finally {
+    templatesLoading.value = false
   }
 }
 
@@ -214,7 +215,7 @@ function onTemplateSaved() {
 /* 课程表单需要机构数据 */
 async function ensureMeta() {
   try {
-    if (!metaStore.organizations.length) metaStore.setOrganizations(await loadOrganizations())
+    if (!metaStore.organizations.length) metaStore.setOrganizations(await organizationList())
   } catch (e) {
     /* 忽略 */
   }
@@ -243,9 +244,15 @@ async function openDetail(c) {
 }
 
 async function copyNextWeek() {
-  await ElMessageBox.confirm('将本周全部课程复制到下周，确定吗？', '复制课程')
-  const count = await courseCopyWeek(1)
-  ElMessage.success(`已复制 ${count} 节课到下周`)
+  await ElMessageBox.confirm('将当前周全部课程复制到下一周，确定吗？', '复制课程')
+  const sourceMonday = mondayOf(anchor.value)
+  const { copied, skippedRepeat = 0, skippedConflict = 0 } = await courseCopyWeek(1, sourceMonday)
+  const skipped = skippedRepeat + skippedConflict
+  if (skipped > 0) {
+    ElMessage.success(`已复制 ${copied} 节，跳过 ${skipped} 节（${skippedRepeat} 节重复课，${skippedConflict} 节时段冲突）`)
+  } else {
+    ElMessage.success(`已复制 ${copied} 节课到下一周`)
+  }
   reload()
 }
 
@@ -521,6 +528,7 @@ function startDrag(e, c) {
       const newEnd = dayjs(newStart).add(durMin, 'minute').format('YYYY-MM-DDTHH:mm:ss')
       try {
         await courseMove(cid, { startTime: newStart, endTime: newEnd })
+        ElMessage.success('课程时间已更新')
         reload()
       } catch (err) {
         /* 冲突等错误由拦截器统一提示 */

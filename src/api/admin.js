@@ -45,6 +45,28 @@ export const adminMessageTeacherOptions = (keyword) => request.post('/admin/mess
 /** 数据看板概览（近 N 天统计） */
 export const adminDashboardOverview = (days = 30) => request.post('/admin/dashboard/overview', { days })
 
+/* ---------- 管理端 - 操作日志 ---------- */
+
+/** 操作日志分页列表 */
+export const adminLogPage = (data) => request.post('/admin/logs/page', data)
+
+/* ---------- 管理端 - 自动备份记录 ---------- */
+
+/** 最近自动备份记录 */
+export const adminBackupRecent = (limit = 20) => request.post('/admin/backup/recent', { limit })
+
+/** 下载自动备份文件（返回 blob） */
+export const adminBackupDownload = (id) => request.post('/admin/backup/download', { id }, { responseType: 'blob' })
+
+/** 全局备份存储位置（cos/local） */
+export const adminBackupStorageSetting = () => request.post('/admin/backup/storage-setting')
+
+/** 更新全局备份存储位置 */
+export const adminBackupStorageSave = (storageType) => request.post('/admin/backup/storage-setting/save', { storageType })
+
+/** 立即手动备份一次（按当前全局存储位置） */
+export const adminBackupRun = () => request.post('/admin/backup/run')
+
 /* ---------- 教师端 - 系统消息 ---------- */
 
 /** 系统消息列表（公告/活动/通知） */

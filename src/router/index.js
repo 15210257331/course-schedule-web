@@ -50,12 +50,6 @@ const routes = [
         meta: { title: '费用详情' }
       },
       {
-        path: 'attachments',
-        name: 'attachments',
-        component: () => import('@/views/attachments/index.vue'),
-        meta: { title: '附件管理' }
-      },
-      {
         path: 'profile',
         name: 'profile',
         component: () => import('@/views/profile/index.vue'),
@@ -92,6 +86,18 @@ const routes = [
         name: 'adminMessages',
         component: () => import('@/views/admin/messages/index.vue'),
         meta: { title: '消息推送', requiresAdmin: true }
+      },
+      {
+        path: 'logs',
+        name: 'adminLogs',
+        component: () => import('@/views/admin/logs/index.vue'),
+        meta: { title: '操作日志', requiresAdmin: true }
+      },
+      {
+        path: 'backup',
+        name: 'adminBackup',
+        component: () => import('@/views/admin/backup/index.vue'),
+        meta: { title: '数据备份', requiresAdmin: true }
       }
     ]
   },

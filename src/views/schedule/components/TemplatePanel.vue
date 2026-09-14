@@ -35,6 +35,9 @@
                     <div class="tpl-sub" :title="subOf(t)">
                         {{ subOf(t) }}
                     </div>
+                    <span v-if="t.attachmentCount > 0" class="tpl-att-badge" :title="`${t.attachmentCount} 个附件`" @click.stop="emit('edit', t)">
+                        <el-icon><Paperclip /></el-icon>{{ t.attachmentCount }}
+                    </span>
                 </div>
                 <div class="tpl-actions" @mousedown.stop>
                     <el-icon class="tpl-action" @click.stop="emit('edit', t)"><EditPen /></el-icon>
@@ -50,7 +53,7 @@
 
 <script setup>
     import { computed, ref, watch } from "vue"
-    import { Plus, Search, EditPen, Delete, QuestionFilled } from "@element-plus/icons-vue"
+    import { Plus, Search, EditPen, Delete, QuestionFilled, Paperclip } from "@element-plus/icons-vue"
     import { VueDraggable } from "vue-draggable-plus"
     import { durationText, COURSE_COLORS, courseTypeColor } from "@/utils/date"
     import { useMetaStore } from "@/store/meta"
@@ -273,6 +276,32 @@
                     white-space: nowrap;
                     overflow: hidden;
                     text-overflow: ellipsis;
+                }
+            }
+            /* 右下角附件标识 */
+            .tpl-att-badge {
+                position: absolute;
+                right: 8px;
+                bottom: 8px;
+                display: inline-flex;
+                align-items: center;
+                gap: 2px;
+                font-size: 11px;
+                font-weight: 600;
+                line-height: 1;
+                padding: 2px 6px;
+                border-radius: 999px;
+                color: var(--color-primary);
+                background: var(--el-color-primary-light-9);
+                z-index: 1;
+                cursor: pointer;
+                transition: color 0.15s ease, background 0.15s ease;
+                &:hover {
+                    color: var(--color-primary);
+                    background: var(--el-color-primary-light-7, var(--color-primary));
+                }
+                :deep(.el-icon) {
+                    font-size: 12px;
                 }
             }
             .tpl-actions {

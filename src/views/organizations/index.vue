@@ -45,9 +45,8 @@ import { onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search } from '@element-plus/icons-vue'
-import { organizationPage, organizationRemove } from '@/api/organization'
+import { organizationPage, organizationRemove, organizationList } from '@/api/organization'
 import { useMetaStore } from '@/store/meta'
-import { loadOrganizations } from '@/utils/idb'
 import OrganizationTable from './components/OrganizationTable.vue'
 import OrganizationFormDialog from './components/OrganizationFormDialog.vue'
 
@@ -74,7 +73,7 @@ async function fetchData() {
     list.value = res.list || []
     total.value = res.total || 0
     try {
-      metaStore.setOrganizations(await loadOrganizations())
+      metaStore.setOrganizations(await organizationList())
     } catch (e) {
       /* 忽略 */
     }

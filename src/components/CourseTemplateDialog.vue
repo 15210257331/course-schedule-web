@@ -92,20 +92,70 @@
             <el-form-item label="备注">
                 <el-input v-model="form.note" type="textarea" :rows="2" placeholder="备注" />
             </el-form-item>
+
+            <!-- 附件：挂在模板（学生）下，新建时提示先保存模板，编辑时可上传/管理 -->
+            <el-form-item label="附件">
+                <div v-if="!form.id" class="att-hint">保存模板后可上传课件 / 作业 / 讲义等附件</div>
+                <div v-else class="att-section">
+                    <el-upload
+                        class="att-upload"
+                        :show-file-list="false"
+                        :http-request="onUpload"
+                        :before-upload="beforeUpload"
+                        accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip"
+                    >
+                        <div class="att-upload-card" :class="{ 'is-loading': uploading }">
+                            <el-icon class="att-upload-plus"><Plus /></el-icon>
+                            <span class="att-upload-text">{{ uploading ? '上传中' : '上传文件' }}</span>
+                        </div>
+                    </el-upload>
+                    <div v-if="attachments.length" class="att-list">
+                        <div v-for="a in attachments" :key="a.id" class="att-card">
+                            <div class="att-thumb" :class="`is-${fileType(a)}`" @click="isPreviewable(a) && previewAttachment(a)">
+                                <img v-if="isImage(a)" :src="a.filePath" alt="" loading="lazy" />
+                                <span v-else class="att-ext">{{ extLabel(a) }}</span>
+                                <span v-if="isPreviewable(a)" class="att-zoom"><el-icon><ZoomIn /></el-icon></span>
+                            </div>
+                            <div class="att-body">
+                                <div class="att-name" :title="a.fileName">{{ a.fileName }}</div>
+                                <div class="att-meta">
+                                    <span class="att-tag" :class="`is-${fileType(a)}`">{{ fileTypeLabel(a) }}</span>
+                                    <span class="att-size">{{ formatSize(a.fileSize) }}</span>
+                                </div>
+                                <div class="att-ops">
+                                    <el-tooltip v-if="isPreviewable(a)" content="预览" placement="top">
+                                        <el-icon class="att-op" @click="previewAttachment(a)"><View /></el-icon>
+                                    </el-tooltip>
+                                    <el-tooltip content="下载" placement="top">
+                                        <el-icon class="att-op" @click="downloadAttachment(a)"><Download /></el-icon>
+                                    </el-tooltip>
+                                    <el-tooltip content="删除" placement="top">
+                                        <el-icon class="att-op danger" @click="removeAttachment(a)"><Delete /></el-icon>
+                                    </el-tooltip>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div v-else class="att-empty">还没有附件</div>
+                </div>
+            </el-form-item>
         </el-form>
 
         <template #footer>
             <el-button @click="$emit('update:visible', false)">取消</el-button>
             <el-button type="primary" :loading="saving" @click="submit">保存</el-button>
         </template>
+
+        <el-image-viewer v-if="viewerVisible" teleported :url-list="viewerUrl ? [viewerUrl] : []" @close="viewerVisible = false" />
     </el-dialog>
 </template>
 
 <script setup>
     import { computed, reactive, ref, watch } from "vue"
     import { ElMessage, ElMessageBox } from "element-plus"
-    import { QuestionFilled } from "@element-plus/icons-vue"
+    import { QuestionFilled, Plus, View, Download, Delete, ZoomIn } from "@element-plus/icons-vue"
     import { templateCreate, templateUpdate } from "@/api/courseTemplate"
+    import { attachmentList, attachmentUpload, attachmentDownload, attachmentRemove } from "@/api/attachment"
     import { authProfile } from "@/api/auth"
     import { settingList } from "@/api/setting"
     import { useAuthStore } from "@/store/auth"
@@ -122,6 +172,14 @@
     const saving = ref(false)
     const defaultDuration = ref(120)
     const defaultFee = ref(300)
+
+    /* 附件相关状态 */
+    const attachments = ref([])
+    const uploading = ref(false)
+    const viewerVisible = ref(false)
+    const viewerUrl = ref("")
+
+    const IMAGE_EXTS = ["jpg", "jpeg", "png", "gif", "webp"]
 
     /* 加载系统设置的默认课程时长和默认课时费 */
     async function loadSettings() {
@@ -205,6 +263,7 @@
     function onClosed() {
         resetForm()
         formRef.value?.clearValidate()
+        attachments.value = []
     }
 
     function resetForm() {
@@ -274,6 +333,137 @@
             note: tpl.note || "",
             repeatType: tpl.repeatType || "",
         })
+        // 编辑模板时加载其已有附件
+        loadAttachments(tpl.id)
+    }
+
+    /* ============ 附件：类型判定 + 上传 / 预览 / 下载 / 删除 ============ */
+    function extOf(a) {
+        return (a.fileName || "").split(".").pop().toLowerCase()
+    }
+    function isImage(a) {
+        return IMAGE_EXTS.includes(extOf(a))
+    }
+    function isPdf(a) {
+        return extOf(a) === "pdf"
+    }
+    function isPreviewable(a) {
+        return isImage(a) || isPdf(a)
+    }
+    function fileType(a) {
+        const ext = extOf(a)
+        if (IMAGE_EXTS.includes(ext)) return "image"
+        if (ext === "pdf") return "pdf"
+        if (ext === "doc" || ext === "docx") return "word"
+        if (ext === "xls" || ext === "xlsx") return "excel"
+        if (ext === "ppt" || ext === "pptx") return "ppt"
+        if (ext === "txt") return "txt"
+        if (ext === "zip") return "zip"
+        return "file"
+    }
+    function extLabel(a) {
+        const ext = extOf(a)
+        if (!ext) return "FILE"
+        return ext.length <= 4 ? ext.toUpperCase() : ext.slice(0, 4).toUpperCase()
+    }
+    function fileTypeLabel(a) {
+        const ext = extOf(a)
+        if (IMAGE_EXTS.includes(ext)) return "图片"
+        if (ext === "pdf") return "PDF"
+        if (ext === "doc" || ext === "docx") return "Word"
+        if (ext === "xls" || ext === "xlsx") return "Excel"
+        if (ext === "ppt" || ext === "pptx") return "PPT"
+        if (ext === "txt") return "文本"
+        if (ext === "zip") return "压缩包"
+        return "文件"
+    }
+    function formatSize(bytes) {
+        if (bytes == null) return ""
+        if (bytes < 1024) return bytes + " B"
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB"
+        return (bytes / 1024 / 1024).toFixed(1) + " MB"
+    }
+
+    async function loadAttachments(templateId) {
+        try {
+            attachments.value = (await attachmentList(templateId)) || []
+        } catch (e) {
+            attachments.value = []
+        }
+    }
+
+    function beforeUpload(file) {
+        const ext = (file.name.split(".").pop() || "").toLowerCase()
+        const allowed = ["jpg", "jpeg", "png", "gif", "webp", "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "zip"]
+        if (!allowed.includes(ext)) {
+            ElMessage.error(`「${file.name}」类型不支持`)
+            return false
+        }
+        if (file.size > 20 * 1024 * 1024) {
+            ElMessage.error("文件大小不能超过 20MB")
+            return false
+        }
+        return true
+    }
+
+    async function onUpload({ file }) {
+        uploading.value = true
+        try {
+            const a = await attachmentUpload(file, form.id)
+            attachments.value.unshift(a)
+            ElMessage.success(`「${file.name}」上传成功`)
+        } catch (e) {
+            /* 错误由拦截器提示 */
+        } finally {
+            uploading.value = false
+        }
+    }
+
+    async function downloadAttachment(a) {
+        try {
+            const blob = await attachmentDownload(a.id)
+            const url = URL.createObjectURL(blob)
+            const link = document.createElement("a")
+            link.href = url
+            link.download = a.fileName || "attachment"
+            link.click()
+            URL.revokeObjectURL(url)
+        } catch (e) {
+            /* 错误由拦截器提示 */
+        }
+    }
+
+    async function removeAttachment(a) {
+        try {
+            await ElMessageBox.confirm(`确定删除附件「${a.fileName}」吗？`, "删除附件", { type: "warning" })
+        } catch (e) {
+            return
+        }
+        try {
+            await attachmentRemove(a.id)
+            attachments.value = attachments.value.filter(x => x.id !== a.id)
+            ElMessage.success("已删除")
+        } catch (e) {
+            /* 错误由拦截器提示 */
+        }
+    }
+
+    function previewAttachment(a) {
+        if (isImage(a)) {
+            viewerUrl.value = a.filePath
+            viewerVisible.value = true
+            return
+        }
+        if (isPdf(a)) {
+            const win = window.open("", "_blank")
+            attachmentDownload(a.id)
+                .then(blob => {
+                    const url = URL.createObjectURL(blob)
+                    if (win) win.location.href = url
+                    setTimeout(() => URL.revokeObjectURL(url), 60000)
+                })
+                .catch(() => { if (win) win.close() })
+        }
     }
 
     defineExpose({ openForEdit })
@@ -305,6 +495,195 @@
 
         .el-input {
             flex: 1;
+        }
+    }
+
+    /* 附件区 */
+    .att-hint {
+        font-size: 12px;
+        color: var(--color-muted);
+        padding: 6px 0;
+    }
+    .att-section {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+    .att-upload {
+        width: 100%;
+        :deep(.el-upload) {
+            width: 100%;
+            display: block;
+        }
+    }
+    .att-upload-card {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 14px;
+        border: 1.5px dashed var(--color-border);
+        border-radius: 10px;
+        color: var(--color-muted);
+        cursor: pointer;
+        background: var(--color-surface);
+        transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+        .att-upload-plus {
+            font-size: 22px;
+            line-height: 1;
+        }
+        .att-upload-text {
+            font-size: 12px;
+            font-weight: 600;
+        }
+        &:hover {
+            border-color: var(--color-primary);
+            color: var(--color-primary);
+            background: var(--el-color-primary-light-9);
+        }
+        &.is-loading {
+            pointer-events: none;
+            opacity: 0.6;
+        }
+    }
+    .att-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 10px;
+    }
+    .att-empty {
+        font-size: 12px;
+        color: var(--color-muted);
+        padding: 4px 0;
+    }
+    .att-card {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px;
+        background: var(--color-canvas);
+        border: 1px solid var(--color-border);
+        border-radius: 9px;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        &:hover {
+            border-color: var(--color-primary);
+            box-shadow: 0 4px 12px rgba(99, 91, 255, 0.1);
+        }
+    }
+    .att-thumb {
+        position: relative;
+        flex-shrink: 0;
+        width: 40px;
+        height: 40px;
+        border-radius: 8px;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .att-ext {
+            font-size: 10px;
+            font-weight: 700;
+        }
+        .att-zoom {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            color: #fff;
+            background: rgba(15, 23, 42, 0.4);
+            opacity: 0;
+            transition: opacity 0.15s ease;
+        }
+        &.is-image {
+            cursor: zoom-in;
+            border: 1px solid var(--color-border);
+            &:hover .att-zoom {
+                opacity: 1;
+            }
+        }
+        &.is-pdf { background: #fdeaea; .att-ext { color: #d63031; } }
+        &.is-word { background: #e8f0fe; .att-ext { color: #2b6cb0; } }
+        &.is-excel { background: #e6f6e9; .att-ext { color: #1a9a4a; } }
+        &.is-ppt { background: #fdf0e3; .att-ext { color: #e05a00; } }
+        &.is-txt { background: #eef0f3; .att-ext { color: #5a6071; } }
+        &.is-zip { background: #efedff; .att-ext { color: #635bff; } }
+        &.is-file { background: #eef0f3; .att-ext { color: #5a6071; } }
+    }
+    .att-body {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+    .att-name {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--color-ink);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .att-meta {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+    }
+    .att-tag {
+        font-size: 9px;
+        font-weight: 600;
+        line-height: 1.5;
+        padding: 0 4px;
+        border-radius: 4px;
+        white-space: nowrap;
+        &.is-image { background: #e6f6e9; color: #1a9a4a; }
+        &.is-pdf { background: #fdeaea; color: #d63031; }
+        &.is-word { background: #e8f0fe; color: #2b6cb0; }
+        &.is-excel { background: #e6f6e9; color: #1a9a4a; }
+        &.is-ppt { background: #fdf0e3; color: #e05a00; }
+        &.is-txt { background: #eef0f3; color: #5a6071; }
+        &.is-zip { background: #efedff; color: #635bff; }
+        &.is-file { background: #eef0f3; color: #5a6071; }
+    }
+    .att-size {
+        font-size: 10px;
+        color: var(--color-muted);
+        white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+    }
+    .att-ops {
+        display: flex;
+        align-items: center;
+        gap: 3px;
+        margin-top: 1px;
+        .att-op {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            height: 24px;
+            font-size: 14px;
+            line-height: 1;
+            color: var(--color-muted);
+            cursor: pointer;
+            border-radius: 6px;
+            transition: color 0.15s ease, background 0.15s ease;
+            &:hover {
+                color: var(--color-primary);
+                background: var(--el-color-primary-light-9);
+            }
+            &.danger:hover {
+                color: var(--color-danger);
+                background: var(--el-color-danger-light-9);
+            }
         }
     }
 </style>

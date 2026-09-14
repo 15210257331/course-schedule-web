@@ -21,5 +21,6 @@ export const courseRemove = (id) => request.delete(`/courses/${id}`)
 /** 拖拽移动课程（调整时间） */
 export const courseMove = (id, data) => request.put(`/courses/${id}/move`, data)
 
-/** 复制本周课程到下周 */
-export const courseCopyWeek = (week = 1) => request.post('/courses/copy-week', { week })
+/** 复制指定周课程到目标周（week=1 表示下一周），sourceMonday 为 YYYY-MM-DD 的源周周一，缺省取本周 */
+export const courseCopyWeek = (week = 1, sourceMonday = null) =>
+  request.post('/courses/copy-week', sourceMonday ? { week, sourceMonday } : { week })

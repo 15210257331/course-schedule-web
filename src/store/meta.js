@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 
 /**
  * 基础数据缓存：机构 / 课程模板，供课程表与各类表单下拉使用。
- * 数据来源优先 IndexedDB 按资源缓存，其次对应接口。
+ * 数据来源为对应接口（organizations / course-templates）。
  */
 export const useMetaStore = defineStore('meta', {
   state: () => ({
