@@ -37,6 +37,14 @@
         </div>
         <div class="list-actions">
           <span class="muted-text">保留最近 14 份 · 失败不中断</span>
+          <el-upload
+            accept=".json"
+            :show-file-list="false"
+            :before-upload="confirmRestore"
+            :http-request="doRestore"
+          >
+            <el-button type="warning" plain :icon="Upload" :loading="restoring">导入备份</el-button>
+          </el-upload>
           <el-button
             type="primary"
             :icon="Promotion"
@@ -105,9 +113,9 @@
 
 <script setup>
 import { onMounted, ref } from 'vue'
-import { ElMessage } from 'element-plus'
-import { Clock, Download, FolderOpened, Promotion, Refresh } from '@element-plus/icons-vue'
-import { adminBackupRecent, adminBackupDownload, adminBackupStorageSetting, adminBackupStorageSave, adminBackupRun } from '@/api/admin'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Clock, Download, FolderOpened, Promotion, Refresh, Upload } from '@element-plus/icons-vue'
+import { adminBackupRecent, adminBackupDownload, adminBackupStorageSetting, adminBackupStorageSave, adminBackupRun, adminBackupRestore } from '@/api/admin'
 import { dayjs } from '@/utils/date'
 
 const list = ref([])
@@ -115,6 +123,7 @@ const loading = ref(false)
 const useCos = ref('local')
 const savingSetting = ref(false)
 const running = ref(false)
+const restoring = ref(false)
 
 const storageOptions = [
   { label: '服务器本地', value: 'local' },
@@ -195,6 +204,37 @@ async function download(row) {
     ElMessage.error('下载失败，请稍后重试')
   } finally {
     row._downloading = false
+  }
+}
+
+// 导入备份恢复：选文件后二次确认，确认后上传；:before-upload 返回 false 会阻止默认上传，
+// 但我们用 :http-request 接管上传，这里只负责弹确认框
+async function confirmRestore(file) {
+  try {
+    await ElMessageBox.confirm(
+      `将用「${file.name}」覆盖当前数据：清空并还原全部课程 / 模板 / 机构等业务数据（教师账号保留），此操作不可撤销。确定继续？`,
+      '导入备份',
+      { type: 'warning', confirmButtonText: '确认覆盖', cancelButtonText: '取消', confirmButtonClass: 'el-button--warning' }
+    )
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function doRestore({ file }) {
+  restoring.value = true
+  try {
+    const res = await adminBackupRestore(file)
+    const tables = res?.tables?.length || 0
+    const rows = res?.rows || 0
+    const skipped = res?.skipped?.length || 0
+    ElMessage.success(`已恢复 ${rows} 行，涉及 ${tables} 张表${skipped ? `，跳过 ${skipped} 项` : ''}`)
+    await load()
+  } catch (e) {
+    /* 拦截器已提示 */
+  } finally {
+    restoring.value = false
   }
 }
 

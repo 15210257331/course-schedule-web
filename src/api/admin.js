@@ -67,6 +67,15 @@ export const adminBackupStorageSave = (storageType) => request.post('/admin/back
 /** 立即手动备份一次（按当前全局存储位置） */
 export const adminBackupRun = () => request.post('/admin/backup/run')
 
+/** 导入备份 JSON 恢复数据库（清空当前业务数据后全量还原，账号表保留） */
+export const adminBackupRestore = (file) => {
+  const form = new FormData()
+  form.append('file', file)
+  return request.post('/admin/backup/restore', form, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  })
+}
+
 /* ---------- 教师端 - 系统消息 ---------- */
 
 /** 系统消息列表（公告/活动/通知） */

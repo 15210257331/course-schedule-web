@@ -12,6 +12,7 @@
                         <el-option label="课程模板" value="course_template" />
                         <el-option label="机构" value="organization" />
                         <el-option label="附件" value="attachment" />
+                        <el-option label="数据备份" value="backup" />
                     </el-select>
                     <el-select v-model="filters.action" placeholder="动作" clearable style="width: 160px" @change="load">
                         <el-option label="登录" value="LOGIN" />
@@ -25,6 +26,9 @@
                         <el-option label="发布" value="PUBLISH" />
                         <el-option label="移动" value="MOVE" />
                         <el-option label="整周复制" value="COPY_WEEK" />
+                        <el-option label="立即备份" value="RUN_NOW" />
+                        <el-option label="存储切换" value="SET_STORAGE" />
+                        <el-option label="恢复" value="RESTORE" />
                     </el-select>
                     <el-input v-model="filters.keyword" placeholder="用户名 / 详情" clearable style="width: 200px" @keyup.enter="load" @clear="load" />
                     <el-button type="primary" :icon="Search" @click="load">查询</el-button>
@@ -101,6 +105,7 @@
         course_template: "课程模板",
         organization: "机构",
         attachment: "附件",
+        backup: "数据备份",
     }
     const ACTION_LABEL = {
         LOGIN: "登录",
@@ -114,6 +119,9 @@
         PUBLISH: "发布",
         MOVE: "移动",
         COPY_WEEK: "整周复制",
+        RUN_NOW: "立即备份",
+        SET_STORAGE: "存储切换",
+        RESTORE: "恢复",
     }
 
     function fmtTime(t) {
@@ -124,15 +132,16 @@
     }
     function moduleTag(m) {
         if (m === "auth") return "info"
-        if (m === "teacher" || m === "message") return "primary"
+        if (m === "teacher" || m === "message" || m === "backup") return "primary"
         return "warning"
     }
     function actionLabel(a) {
         return ACTION_LABEL[a] || a || "—"
     }
     function actionTag(a) {
-        if (a === "DELETE" || a === "LOGIN_FAIL" || a === "REVOKE") return "danger"
+        if (a === "DELETE" || a === "LOGIN_FAIL" || a === "REVOKE" || a === "RESTORE") return "danger"
         if (a === "CREATE" || a === "PUBLISH" || a === "LOGIN") return "success"
+        if (a === "RUN_NOW" || a === "SET_STORAGE" || a === "COPY_WEEK") return "warning"
         return "info"
     }
 
