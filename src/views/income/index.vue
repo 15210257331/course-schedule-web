@@ -4,7 +4,7 @@
     <div class="fee-head">
       <div>
         <h2 class="page-title">费用详情</h2>
-        <p class="text-muted" style="margin: 4px 0 0">机构 × 课程数 = 费用</p>
+        <p class="text-muted" style="margin: 4px 0 0">学生 × 课程数 = 费用</p>
       </div>
       <div class="fee-head-controls">
         <el-date-picker
@@ -46,7 +46,7 @@
               <!-- 每个学生标签后跟费用计算，排在机构右侧，横向排列，数据多时折行 -->
               <div v-if="orgStudentItems(r).length" class="fee-students">
                 <span v-for="(s, si) in orgStudentItems(r)" :key="si" class="fee-student">
-                  <span class="fee-student-tag" :style="s.style">{{ s.name }}</span>
+                  <span v-if="s.name" class="fee-student-tag" :style="s.style">{{ s.name }}</span>
                   <span class="fee-student-formula">{{ s.formula }}</span>
                 </span>
               </div>
@@ -78,8 +78,8 @@ import { Download } from '@element-plus/icons-vue'
 import { dashboardIncomeReportRange, dashboardUpdateSettlement } from '@/api/dashboard'
 import { formatMoney, dayjs } from '@/utils/date'
 
-/* 默认选中上月，统计该月整月数据 */
-const month = ref(dayjs().subtract(1, 'month').format('YYYY-MM'))
+/* 默认选中本月，统计该月整月数据 */
+const month = ref(dayjs().format('YYYY-MM'))
 const rows = ref([])
 const settledFee = ref(0)
 const unsettledFee = ref(0)
@@ -114,6 +114,12 @@ function orgStudentsOf(r) {
 
 /* 每个学生 = 标签 + 费用计算，按明细数据组装（数据缺失时回退到学生名标签） */
 function orgStudentItems(r) {
+  // 家教行本身就是一个学生的汇总（organization_id 为空，按「家教-学生」分组），
+  // 后端的学生级明细不含家教，此处直接用自己的课程数 / 费用补出公式；
+  // 行名已带学生，不再重复渲染学生标签
+  if (r.targetType === 'tutor') {
+    return [{ name: '', formula: formula(r), style: '' }]
+  }
   const detail = orgStudentsOf(r)
   const detailMap = new Map(detail.map((d) => [d.studentName, d]))
   const names = detail.length

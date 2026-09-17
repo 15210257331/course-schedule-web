@@ -199,7 +199,7 @@
             min-height: 60px;
             overflow-y: auto;
             padding-right: 2px;
-            max-height: 414px;
+            max-height: 460px;
         }
         .tpl-card {
             position: relative;
