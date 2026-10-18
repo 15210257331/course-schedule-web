@@ -225,7 +225,7 @@
     import { settingList } from "@/api/setting"
     import { authProfile } from "@/api/auth"
     import { coursePage } from "@/api/course"
-    import { templateList } from "@/api/courseTemplate"
+    import { studentList } from "@/api/student"
     import { organizationList } from "@/api/organization"
     import { dayjs } from "@/utils/date"
 
@@ -251,6 +251,7 @@
             { name: "courses", title: "课程管理" },
             { name: "students", title: "学生管理" },
             { name: "organizations", title: "机构管理" },
+            { name: "courseware", title: "课件" },
             { name: "income", title: "收入" },
         ]
     })
@@ -413,10 +414,10 @@
     const searchResults = ref([])
     let searchTimer = null
 
-    function mergeSearch(courses, templates, orgs) {
+    function mergeSearch(courses, students, orgs) {
         const out = []
         ;(courses || []).slice(0, 5).forEach(c => out.push({ kind: "course", id: c.id, title: c.title, studentName: c.studentName, subject: c.subject, startTime: c.startTime }))
-        ;(templates || []).slice(0, 5).forEach(t => out.push({ kind: "student", id: t.id, studentName: t.studentName, subject: t.subject, stage: t.stage }))
+        ;(students || []).slice(0, 5).forEach(t => out.push({ kind: "student", id: t.id, studentName: t.studentName, subject: t.subject, stage: t.stage }))
         ;(orgs || []).slice(0, 5).forEach(o => out.push({ kind: "org", id: o.id, name: o.name, address: o.address }))
         return out
     }
@@ -430,14 +431,14 @@
         }
         searching.value = true
         try {
-            const [courses, templates, orgs] = await Promise.all([
+            const [courses, students, orgs] = await Promise.all([
                 coursePage({ pageNum: 1, pageSize: 10, title: kw })
                     .then(r => r.list || [])
                     .catch(() => []),
-                templateList(kw).catch(() => []),
+                studentList(kw).catch(() => []),
                 organizationList(kw).catch(() => []),
             ])
-            searchResults.value = mergeSearch(courses, templates, orgs)
+            searchResults.value = mergeSearch(courses, students, orgs)
         } finally {
             searching.value = false
         }
@@ -460,7 +461,7 @@
     function goSearch(r) {
         clearSearch()
         if (r.kind === "course") {
-            router.push({ name: "courses", query: { title: r.title } })
+            router.push({ name: "courses", query: { title: r.studentName } })
         } else if (r.kind === "student") {
             router.push({ name: "students", query: { keyword: r.studentName } })
         } else if (r.kind === "org") {

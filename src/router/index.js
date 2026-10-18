@@ -44,6 +44,12 @@ const routes = [
         meta: { title: '机构管理' }
       },
       {
+        path: 'courseware',
+        name: 'courseware',
+        component: () => import('@/views/courseware/index.vue'),
+        meta: { title: '课件' }
+      },
+      {
         path: 'income',
         name: 'income',
         component: () => import('@/views/income/index.vue'),

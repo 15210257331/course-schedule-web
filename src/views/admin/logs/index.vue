@@ -9,9 +9,9 @@
                         <el-option label="教师管理" value="teacher" />
                         <el-option label="消息推送" value="message" />
                         <el-option label="课程" value="course" />
-                        <el-option label="课程模板" value="course_template" />
+                        <el-option label="学生" value="student" />
                         <el-option label="机构" value="organization" />
-                        <el-option label="附件" value="attachment" />
+                        <el-option label="课件" value="attachment" />
                         <el-option label="数据备份" value="backup" />
                     </el-select>
                     <el-select v-model="filters.action" placeholder="动作" clearable style="width: 160px" @change="load">
@@ -31,6 +31,7 @@
                         <el-option label="恢复" value="RESTORE" />
                     </el-select>
                     <el-input v-model="filters.keyword" placeholder="用户名 / 详情" clearable style="width: 200px" @keyup.enter="load" @clear="load" />
+                    <el-button :icon="RefreshLeft" @click="resetFilters">重置</el-button>
                     <el-button type="primary" :icon="Search" @click="load">查询</el-button>
                 </div>
             </div>
@@ -86,7 +87,7 @@
 
 <script setup>
     import { onMounted, reactive, ref } from "vue"
-    import { Search } from "@element-plus/icons-vue"
+    import { Search, RefreshLeft } from "@element-plus/icons-vue"
     import { adminLogPage } from "@/api/admin"
     import { dayjs } from "@/utils/date"
 
@@ -102,9 +103,10 @@
         teacher: "教师管理",
         message: "消息推送",
         course: "课程",
+        student: "学生",
         course_template: "课程模板",
         organization: "机构",
-        attachment: "附件",
+        attachment: "课件",
         backup: "数据备份",
     }
     const ACTION_LABEL = {
@@ -165,6 +167,14 @@
     function load() {
         page.value = 1
         fetchData()
+    }
+
+    /* 重置筛选条件并回到第一页重新查询 */
+    function resetFilters() {
+        filters.module = ""
+        filters.action = ""
+        filters.keyword = ""
+        load()
     }
 
     onMounted(load)

@@ -39,7 +39,7 @@
               >
                 <el-option v-for="s in SUBJECT_OPTIONS" :key="s" :label="s" :value="s" />
               </el-select>
-              <div class="text-muted field-tip">新建课程模板时科目限定为所选任教学科</div>
+              <div class="text-muted field-tip">新建课程 / 学生时科目限定为所选任教学科</div>
             </el-form-item>
             <el-button type="primary" :loading="saving" @click="saveProfile">保存资料</el-button>
           </el-form>

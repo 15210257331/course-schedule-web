@@ -1,18 +1,18 @@
 <template>
-    <el-card shadow="never" class="template-panel">
-        <div class="tp-header flex-between">
-            <div class="tp-title">
-                <span class="card-title" style="margin: 0">课程模板</span>
-                <el-tooltip content="拖动模板到右侧日历的对应时间段即可排课" placement="top">
+    <el-card shadow="never" class="student-panel">
+        <div class="sp-header flex-between">
+            <div class="sp-title">
+                <span class="card-title" style="margin: 0">学生列表</span>
+                <el-tooltip content="拖动学生到右侧日历的对应时间段即可排课" placement="top">
                     <el-icon class="tip-icon"><QuestionFilled /></el-icon>
                 </el-tooltip>
             </div>
             <el-button type="primary" size="small" :icon="Plus" circle @click="emit('create')" />
         </div>
-        <el-input v-model="keyword" placeholder="搜索模板" clearable size="small" :prefix-icon="Search" class="tp-search" />
+        <el-input v-model="keyword" placeholder="搜索学生" clearable size="small" :prefix-icon="Search" class="sp-search" />
         <VueDraggable
             :model-value="result"
-            class="tpl-list"
+            class="stu-list"
             :animation="150"
             :group="{ name: 'courses', pull: 'clone', put: false }"
             :sort="false"
@@ -22,31 +22,31 @@
             drag-class="dp-drag"
             v-loading="loading"
         >
-            <div v-for="t in result" :key="t.id" class="tpl-card" :style="cardStyle(t)" :data-id="t.id">
-                <div class="tpl-body">
-                    <div class="tpl-title" :title="titleOf(t)">
+            <div v-for="t in result" :key="t.id" class="stu-card" :style="cardStyle(t)" :data-id="t.id">
+                <div class="stu-body">
+                    <div class="stu-title" :title="titleOf(t)">
                         {{ titleOf(t) }}
                     </div>
-                    <div class="tpl-meta-row">
-                        <span v-if="t.courseType" class="tpl-pill tpl-pill-type" :title="t.courseType" :style="{ background: courseTypeColor(t.courseType) }">{{ t.courseType }}</span>
-                        <span v-if="t.organizationName" class="tpl-pill tpl-pill-org" :title="t.organizationName">{{ t.organizationName }}</span>
-                        <span v-else-if="isTutor(t)" class="tpl-pill tpl-pill-loc" :title="t.location">{{ t.location }}</span>
+                    <div class="stu-meta-row">
+                        <span v-if="t.courseType" class="stu-pill stu-pill-type" :title="t.courseType" :style="{ background: courseTypeColor(t.courseType) }">{{ t.courseType }}</span>
+                        <span v-if="t.organizationName" class="stu-pill stu-pill-org" :title="t.organizationName">{{ t.organizationName }}</span>
+                        <span v-else-if="showLocation(t)" class="stu-pill stu-pill-loc" :title="t.location">{{ t.location }}</span>
                     </div>
-                    <div class="tpl-sub" :title="subOf(t)">
+                    <div class="stu-sub" :title="subOf(t)">
                         {{ subOf(t) }}
                     </div>
-                    <span v-if="t.attachmentCount > 0" class="tpl-att-badge" :title="`${t.attachmentCount} 个附件`" @click.stop="emit('edit', t)">
-                        <el-icon><Paperclip /></el-icon>{{ t.attachmentCount }}
+                    <span v-if="t.attachmentCount > 0" class="stu-att-badge" :title="`${t.attachmentCount} 个课件，点击查看`" @click.stop="emit('attachments', t)">
+                        <el-icon><Paperclip /></el-icon>
                     </span>
                 </div>
-                <div class="tpl-actions" @mousedown.stop>
-                    <el-icon class="tpl-action" @click.stop="emit('edit', t)"><EditPen /></el-icon>
-                    <el-icon class="tpl-action danger" @click.stop="emit('remove', t)"><Delete /></el-icon>
+                <div class="stu-actions" @mousedown.stop>
+                    <el-icon class="stu-action" @click.stop="emit('edit', t)"><EditPen /></el-icon>
+                    <el-icon class="stu-action danger" @click.stop="emit('remove', t)"><Delete /></el-icon>
                 </div>
             </div>
         </VueDraggable>
-        <div v-if="!result.length" class="tpl-empty text-muted">
-            {{ templates.length ? "没有匹配的模板" : "暂无模板，点击右上角 + 新建" }}
+        <div v-if="!result.length" class="stu-empty text-muted">
+            {{ students.length ? "没有匹配的学生" : "暂无学生，点击右上角 + 新增" }}
         </div>
     </el-card>
 </template>
@@ -57,19 +57,19 @@
     import { VueDraggable } from "vue-draggable-plus"
     import { durationText, COURSE_COLORS, courseTypeColor } from "@/utils/date"
     import { useMetaStore } from "@/store/meta"
-    import { templateList } from "@/api/courseTemplate"
+    import { studentList } from "@/api/student"
 
     const props = defineProps({
-        templates: { type: Array, default: () => [] },
+        students: { type: Array, default: () => [] },
         loading: { type: Boolean, default: false }
     })
-    const emit = defineEmits(["create", "edit", "remove", "clone"])
+    const emit = defineEmits(["create", "edit", "remove", "clone", "attachments"])
 
     const metaStore = useMetaStore()
     const keyword = ref("")
     const searching = ref(false)
 
-    /* 模板搜索：空关键字用全量列表（父组件传入），有关键字走接口名称模糊查询 */
+    /* 学生搜索：空关键字用全量列表（父组件传入），有关键字走接口名称模糊查询 */
     const searched = ref(null)
     let searchTimer = null
 
@@ -79,7 +79,7 @@
             return
         }
         searching.value = true
-        templateList(kw).then((res) => {
+        studentList(kw).then((res) => {
             searched.value = res || []
         }).finally(() => {
             searching.value = false
@@ -100,18 +100,18 @@
         searchTimer = setTimeout(() => runSearch(kw), 250)
     })
 
-    /* 全量列表更新（新建/编辑模板后）时，若正处于搜索态则按当前关键字重新拉取 */
+    /* 全量列表更新（新增/编辑学生后）时，若正处于搜索态则按当前关键字重新拉取 */
     watch(
-        () => props.templates,
+        () => props.students,
         () => {
             const kw = keyword.value.trim()
             if (kw) runSearch(kw)
         },
     )
 
-    const result = computed(() => (searched.value == null ? props.templates : searched.value))
+    const result = computed(() => (searched.value == null ? props.students : searched.value))
 
-    /* 颜色基于机构：机构维护了 color 用机构色，未设置则按机构 id 稳定取色；无机构按模板 id */
+    /* 颜色基于机构：机构维护了 color 用机构色，未设置则按机构 id 稳定取色；无机构按学生 id */
     function colorOf(t) {
         const org = t.organizationId != null ? metaStore.orgMap[t.organizationId] : null
         if (org?.color) return org.color
@@ -119,9 +119,9 @@
         return COURSE_COLORS[(t.id || 0) % COURSE_COLORS.length]
     }
 
-    /* 家教类型且无机构：课程类型后面展示上课地点 */
-    function isTutor(t) {
-        return t.courseType === '家教' && t.organizationId == null
+    /* 无机构且有上课地点（如一对一/家教上门）时，课程类型后面展示地点 */
+    function showLocation(t) {
+        return t.organizationId == null && t.location
     }
 
     /* 卡片标题：学生姓名 · 学段，无则回退 title */
@@ -154,7 +154,7 @@
 </script>
 
 <style lang="scss" scoped>
-    .template-panel {
+    .student-panel {
         /* 宽度由父级 .side-col 控制；随父列拉伸、与右侧日历等高 */
         width: 100%;
         // flex: 1;
@@ -168,10 +168,10 @@
             display: flex;
             flex-direction: column;
         }
-        .tp-header {
+        .sp-header {
             flex-shrink: 0;
         }
-        .tp-title {
+        .sp-title {
             display: flex;
             align-items: center;
             gap: 6px;
@@ -186,11 +186,11 @@
                 color: var(--color-primary);
             }
         }
-        .tp-search {
+        .sp-search {
             margin: 12px 0;
             flex-shrink: 0;
         }
-        .tpl-list {
+        .stu-list {
             display: flex;
             flex-direction: column;
             gap: 8px;
@@ -201,7 +201,7 @@
             padding-right: 2px;
             max-height: 460px;
         }
-        .tpl-card {
+        .stu-card {
             position: relative;
             display: flex;
             align-items: stretch;
@@ -217,21 +217,21 @@
             transition: box-shadow 0.15s ease;
             &:hover {
                 box-shadow: 0 4px 12px rgba(15, 23, 42, 0.14);
-                .tpl-actions {
+                .stu-actions {
                     opacity: 1;
                 }
             }
             &:active {
                 cursor: grabbing;
             }
-            .tpl-body {
+            .stu-body {
                 flex: 1;
                 min-width: 0;
                 display: flex;
                 flex-direction: column;
                 gap: 3px;
                 padding-right: 42px; // 给右上角操作区留位
-                .tpl-title {
+                .stu-title {
                     font-size: 13px;
                     font-weight: 700;
                     color: var(--color-ink);
@@ -239,13 +239,13 @@
                     overflow: hidden;
                     text-overflow: ellipsis;
                 }
-                .tpl-meta-row {
+                .stu-meta-row {
                     display: flex;
                     gap: 4px;
                     overflow: hidden;
                     white-space: nowrap;
                 }
-                .tpl-pill {
+                .stu-pill {
                     font-size: 10px;
                     font-weight: 600;
                     line-height: 1.6;
@@ -259,17 +259,17 @@
                     max-width: 100%;
                 }
                 /* 课程类型胶囊不收缩，让出空间给右侧地址 */
-                .tpl-pill-type {
+                .stu-pill-type {
                     flex-shrink: 0;
                     max-width: none;
                 }
-                .tpl-pill-loc {
+                .stu-pill-loc {
                     color: var(--color-muted);
                     background: var(--color-surface);
                     border: 1px solid var(--color-border);
                     min-width: 0;
                 }
-                .tpl-sub {
+                .stu-sub {
                     margin-top: auto;
                     font-size: 11px;
                     color: var(--color-muted);
@@ -278,18 +278,18 @@
                     text-overflow: ellipsis;
                 }
             }
-            /* 右下角附件标识 */
-            .tpl-att-badge {
+            /* 课件角标：仅图标（数量在 title 中提示），点击查看课件列表 */
+            .stu-att-badge {
                 position: absolute;
                 right: 8px;
                 bottom: 8px;
                 display: inline-flex;
                 align-items: center;
-                gap: 2px;
-                font-size: 11px;
-                font-weight: 600;
-                line-height: 1;
-                padding: 2px 6px;
+                justify-content: center;
+                width: 22px;
+                height: 22px;
+                font-size: 13px;
+                padding: 0;
                 border-radius: 999px;
                 color: var(--color-primary);
                 background: var(--el-color-primary-light-9);
@@ -301,10 +301,10 @@
                     background: var(--el-color-primary-light-7, var(--color-primary));
                 }
                 :deep(.el-icon) {
-                    font-size: 12px;
+                    font-size: 13px;
                 }
             }
-            .tpl-actions {
+            .stu-actions {
                 position: absolute;
                 top: 8px;
                 right: 8px;
@@ -312,7 +312,7 @@
                 gap: 6px;
                 opacity: 0;
                 transition: opacity 0.15s ease;
-                .tpl-action {
+                .stu-action {
                     font-size: 18px;
                     color: var(--color-muted);
                     cursor: pointer;
@@ -328,7 +328,7 @@
                 }
             }
         }
-        .tpl-empty {
+        .stu-empty {
             text-align: center;
             padding: 24px 0;
         }

@@ -62,7 +62,7 @@
             <span class="fee-amount">¥{{ formatMoney(r.fee) }}</span>
           </div>
           <div class="fee-bar">
-            <div class="fee-bar-fill" :style="{ width: barWidth(r.fee) }" />
+            <div class="fee-bar-fill" :style="barStyle(r)" />
           </div>
         </div>
       </div>
@@ -157,12 +157,24 @@ function tagStyle(name) {
   return { color: c.color, background: c.bg }
 }
 
-/* 进度条宽度 = 该生费用 / 最高费用，最高者占满 */
+/* 进度条宽度 = 该行费用 / 最高费用，最高者占满；
+   颜色：机构行使用机构维护的主题色（r.color，由后端按机构返回），
+   家教等无机构的行使用自定义配色（按名称哈希取色，同名稳定同色） */
 const maxFee = computed(() => rows.value.reduce((m, r) => Math.max(m, Number(r.fee) || 0), 0))
-function barWidth(fee) {
-  const n = Number(fee) || 0
-  if (!maxFee.value) return '0%'
-  return `${Math.max(4, Math.round((n / maxFee.value) * 100))}%`
+const BAR_COLORS = ['#635bff', '#2BB3A3', '#f5a623', '#0073e6', '#df1b41', '#30b130', '#8a84ff', '#F5729B']
+function barColor(r) {
+  const orgColor = (r.color || '').trim()
+  if (orgColor) return orgColor
+  return BAR_COLORS[hashStr(r.name || '') % BAR_COLORS.length]
+}
+function barStyle(r) {
+  const n = Number(r.fee) || 0
+  const pct = maxFee.value ? Math.max(4, Math.round((n / maxFee.value) * 100)) : 0
+  const color = barColor(r)
+  return {
+    width: `${pct}%`,
+    background: `linear-gradient(90deg, ${color}, ${color}cc)`
+  }
 }
 
 async function loadReport() {
@@ -430,7 +442,6 @@ onMounted(() => {
   .fee-bar-fill {
     height: 100%;
     border-radius: 999px;
-    background: linear-gradient(90deg, var(--color-primary), #8a84ff);
     transition: width 0.3s ease;
   }
 }

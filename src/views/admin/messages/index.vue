@@ -21,6 +21,7 @@
             @keyup.enter="load"
             @clear="load"
           />
+          <el-button :icon="RefreshLeft" @click="resetFilters">重置</el-button>
           <el-button type="primary" :icon="Search" @click="load">查询</el-button>
         </div>
         <el-button type="primary" :icon="Plus" @click="openEditor()">发布消息</el-button>
@@ -119,7 +120,7 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Search } from '@element-plus/icons-vue'
+import { Plus, Search, RefreshLeft } from '@element-plus/icons-vue'
 import { adminMessagePage, adminMessageDetail, adminMessageRevoke, adminMessagePublish, adminMessageRemove } from '@/api/admin'
 import { dayjs } from '@/utils/date'
 import MessageFormDialog from './components/MessageFormDialog.vue'
@@ -169,6 +170,14 @@ async function fetchData() {
 function load() {
   page.value = 1
   fetchData()
+}
+
+/* 重置筛选条件并回到第一页重新查询 */
+function resetFilters() {
+  filters.type = ''
+  filters.status = ''
+  filters.keyword = ''
+  load()
 }
 
 function openEditor(row) {

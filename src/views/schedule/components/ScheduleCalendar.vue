@@ -146,7 +146,7 @@ const props = defineProps({
   view: { type: String, default: 'week' },
   days: { type: Array, default: () => [] },
   courses: { type: Array, default: () => [] },
-  draggingTemplate: { type: Object, default: null }
+  draggingStudent: { type: Object, default: null }
 })
 const emit = defineEmits([
   'update:view',

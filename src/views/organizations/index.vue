@@ -1,26 +1,38 @@
 <template>
   <div class="page-container">
-    <h2 class="page-title">机构管理</h2>
+    <div class="flex-between mb-16">
+      <h2 class="page-title">机构管理</h2>
+      <div class="flex">
+        <el-button type="primary" :icon="Plus" class="mr-8" @click="openDialog()">新增机构</el-button>
+        <el-button :icon="Download" @click="exportCsv">导出</el-button>
+      </div>
+    </div>
     <el-card>
-      <div class="flex-between mb-16">
-        <div class="flex">
-          <span class="search-label">机构名称</span>
-          <el-input
-            v-model="keyword"
-            placeholder="请输入机构名称"
-            clearable
-            style="width: 220px"
-            class="mr-8"
-            @keyup.enter="load"
-            @clear="load"
-          />
-          <el-button type="primary" :icon="Search" @click="load">查询</el-button>
-          <!-- <span class="text-muted search-count">共 {{ total }} 个机构</span> -->
-        </div>
-        <el-button type="primary" :icon="Plus" @click="openDialog()">新增机构</el-button>
+      <div class="flex filter-bar">
+        <el-input
+          v-model="filters.name"
+          placeholder="机构名称"
+          clearable
+          style="width: 180px"
+          class="mr-8"
+          @keyup.enter="load"
+          @clear="load"
+        />
+        <el-input
+          v-model="filters.address"
+          placeholder="地址"
+          clearable
+          style="width: 180px"
+          class="mr-8"
+          @keyup.enter="load"
+          @clear="load"
+        />
+        <div class="flex-grow" />
+        <el-button :icon="RefreshLeft" class="mr-8" @click="resetFilters">重置</el-button>
+        <el-button type="primary" :icon="Search" @click="load">查询</el-button>
       </div>
 
-      <OrganizationTable :list="list" :loading="loading" @edit="openDialog" @remove="remove" />
+      <OrganizationTable :list="list" :loading="loading" class="mt-16" @edit="openDialog" @remove="remove" />
 
       <div class="flex-end mt-16">
         <el-pagination
@@ -41,10 +53,10 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Search } from '@element-plus/icons-vue'
+import { Plus, Search, RefreshLeft, Download } from '@element-plus/icons-vue'
 import { organizationPage, organizationRemove, organizationList } from '@/api/organization'
 import { useMetaStore } from '@/store/meta'
 import OrganizationTable from './components/OrganizationTable.vue'
@@ -54,7 +66,7 @@ const metaStore = useMetaStore()
 const list = ref([])
 const total = ref(0)
 const loading = ref(false)
-const keyword = ref('')
+const filters = reactive({ name: '', address: '' })
 const dialogVisible = ref(false)
 const dialogRef = ref()
 const route = useRoute()
@@ -68,7 +80,8 @@ async function fetchData() {
     const res = await organizationPage({
       pageNum: page.value,
       pageSize: pageSize.value,
-      name: keyword.value.trim() || undefined
+      name: filters.name.trim() || undefined,
+      address: filters.address.trim() || undefined
     })
     list.value = res.list || []
     total.value = res.total || 0
@@ -85,6 +98,13 @@ async function fetchData() {
 function load() {
   page.value = 1
   fetchData()
+}
+
+/* 重置筛选条件并回到第一页重新查询 */
+function resetFilters() {
+  filters.name = ''
+  filters.address = ''
+  load()
 }
 
 function onSizeChange() {
@@ -104,28 +124,54 @@ async function remove(row) {
   load()
 }
 
+/* 导出当前筛选条件下的机构列表为 CSV（Excel 兼容，带 BOM 与转义） */
+function csvCell(v) {
+  const s = String(v ?? '')
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+}
+
+async function exportCsv() {
+  const res = await organizationPage({
+    pageNum: 1,
+    pageSize: 100000,
+    name: filters.name.trim() || undefined,
+    address: filters.address.trim() || undefined
+  })
+  const rows = res.list || []
+  const head = ['机构名称', '地址', '备注']
+  const lines = [head.join(',')]
+  rows.forEach((r) => {
+    lines.push([r.name, r.address, r.remark].map(csvCell).join(','))
+  })
+  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = '机构列表.csv'
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 onMounted(() => {
   /* 来自全局搜索的跳转关键字 */
-  if (route.query.keyword) keyword.value = String(route.query.keyword)
+  if (route.query.keyword) filters.name = String(route.query.keyword)
   load()
 })
 </script>
 
 <style lang="scss" scoped>
 .page-title {
-  margin: 0 0 16px;
+  margin: 0;
   font-size: 18px;
   font-weight: 700;
   color: var(--color-ink);
 }
-.search-label {
-  margin-right: 8px;
-  font-size: 13px;
-  color: var(--color-muted);
-  white-space: nowrap;
+.filter-bar {
+  flex-wrap: wrap;
+  gap: 0;
 }
-.search-count {
-  margin-left: 16px;
+.flex-grow {
+  flex: 1;
 }
 .flex-end {
   display: flex;

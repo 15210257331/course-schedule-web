@@ -1,39 +1,40 @@
 <template>
   <div class="page-container">
-    <h2 class="page-title">课程管理</h2>
+    <div class="flex-between mb-16">
+      <h2 class="page-title">课程管理</h2>
+      <div class="flex">
+        <el-button type="primary" :icon="Plus" class="mr-8" @click="create">新增课程</el-button>
+        <el-button :icon="Download" @click="exportCsv">导出</el-button>
+      </div>
+    </div>
     <el-card>
-      <div class="flex-between mb-16">
-        <div class="flex">
-          <span class="search-label">上课时间</span>
-          <el-date-picker
-            v-model="range"
-            type="daterange"
-            value-format="YYYY-MM-DD"
-            range-separator="至"
-            start-placeholder="开始日期"
-            end-placeholder="结束日期"
-            style="width: 260px"
-            @change="load"
-          />
-          <span class="search-label">标题</span>
-          <el-input
-            v-model="keyword"
-            placeholder="请输入标题"
-            clearable
-            style="width: 220px"
-            class="mr-8"
-            @keyup.enter="load"
-            @clear="load"
-          />
-          <el-button type="primary" :icon="Search" @click="load">查询</el-button>
-        </div>
-        <div class="flex">
-          <el-button :icon="Download" @click="exportCsv">导出</el-button>
-          <el-button type="primary" :icon="Plus" @click="create">新增课程</el-button>
-        </div>
+      <div class="flex filter-bar filter-left">
+        <el-date-picker
+          v-model="range"
+          type="daterange"
+          value-format="YYYY-MM-DD"
+          range-separator="至"
+          start-placeholder="开始日期"
+          end-placeholder="结束日期"
+          style="width: 200px"
+          class="mr-8"
+          @change="load"
+        />
+        <el-input
+          v-model="filters.studentName"
+          placeholder="学生姓名"
+          clearable
+          style="width: 150px"
+          class="mr-8"
+          @keyup.enter="load"
+          @clear="load"
+        />
+        <div class="flex-grow" />
+        <el-button :icon="RefreshLeft" class="mr-8" @click="resetFilters">重置</el-button>
+        <el-button type="primary" :icon="Search" @click="load">查询</el-button>
       </div>
 
-      <CourseTable :list="list" :loading="loading" @edit="edit" @remove="remove" />
+      <CourseTable :list="list" :loading="loading" class="mt-16" @edit="edit" @remove="remove" />
 
       <div class="flex-end mt-16">
         <el-pagination
@@ -54,11 +55,11 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import dayjs from 'dayjs'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Download, Plus, Search } from '@element-plus/icons-vue'
+import { Download, Plus, Search, RefreshLeft } from '@element-plus/icons-vue'
 import { coursePage, courseRemove } from '@/api/course'
 import CourseFormDialog from '@/components/CourseFormDialog.vue'
 import CourseTable from './components/CourseTable.vue'
@@ -66,7 +67,7 @@ import CourseTable from './components/CourseTable.vue'
 const list = ref([])
 const total = ref(0)
 const loading = ref(false)
-const keyword = ref('')
+const filters = reactive({ studentName: '' })
 const range = ref([dayjs().subtract(1, 'month').format('YYYY-MM-DD'), dayjs().add(1, 'month').format('YYYY-MM-DD')])
 const dialogVisible = ref(false)
 const dialogRef = ref()
@@ -76,17 +77,22 @@ const route = useRoute()
 const page = ref(1)
 const pageSize = ref(20)
 
+/* 组装查询参数（分页查询与 CSV 导出共用，保证导出跟随当前筛选） */
+function queryPayload(pageNum, pageSizeVal) {
+  const [start, end] = range.value
+  return {
+    pageNum,
+    pageSize: pageSizeVal,
+    studentName: filters.studentName.trim() || undefined,
+    start: `${start}T00:00:00`,
+    end: `${dayjs(end).add(1, 'day').format('YYYY-MM-DD')}T00:00:00`
+  }
+}
+
 async function fetchData() {
   loading.value = true
   try {
-    const [start, end] = range.value
-    const res = await coursePage({
-      pageNum: page.value,
-      pageSize: pageSize.value,
-      title: keyword.value.trim() || undefined,
-      start: `${start}T00:00:00`,
-      end: `${dayjs(end).add(1, 'day').format('YYYY-MM-DD')}T00:00:00`
-    })
+    const res = await coursePage(queryPayload(page.value, pageSize.value))
     list.value = res.list || []
     total.value = res.total || 0
   } finally {
@@ -97,6 +103,13 @@ async function fetchData() {
 function load() {
   page.value = 1
   fetchData()
+}
+
+/* 重置筛选条件并回到第一页重新查询 */
+function resetFilters() {
+  filters.studentName = ''
+  range.value = [dayjs().subtract(1, 'month').format('YYYY-MM-DD'), dayjs().add(1, 'month').format('YYYY-MM-DD')]
+  load()
 }
 
 function onPageChange() {
@@ -132,13 +145,7 @@ const statusText = { scheduled: '待上课', completed: '已结束' }
 
 async function exportCsv() {
   const [start, end] = range.value
-  const res = await coursePage({
-    pageNum: 1,
-    pageSize: 100000,
-    title: keyword.value.trim() || undefined,
-    start: `${start}T00:00:00`,
-    end: `${dayjs(end).add(1, 'day').format('YYYY-MM-DD')}T00:00:00`
-  })
+  const res = await coursePage(queryPayload(1, 100000))
   const rows = res.list || []
   const head = ['学生', '科目', '学段', '课程类型', '上课机构', '开始时间', '结束时间', '课时费(元)', '状态', '上课地点', '备注']
   const lines = [head.join(',')]
@@ -171,7 +178,7 @@ async function exportCsv() {
 onMounted(() => {
   /* 来自全局搜索的跳转关键字 */
   if (route.query.title) {
-    keyword.value = String(route.query.title)
+    filters.studentName = String(route.query.title)
     range.value = [dayjs().subtract(1, 'year').format('YYYY-MM-DD'), dayjs().add(1, 'year').format('YYYY-MM-DD')]
   }
   load()
@@ -180,17 +187,19 @@ onMounted(() => {
 
 <style lang="scss" scoped>
 .page-title {
-  margin: 0 0 16px;
+  margin: 0;
   font-size: 18px;
   font-weight: 700;
   color: var(--color-ink);
 }
-.search-label {
-  margin-left: 12px;
-  margin-right: 8px;
-  font-size: 13px;
-  color: var(--color-muted);
-  white-space: nowrap;
+.filter-bar {
+  flex-wrap: wrap;
+}
+.filter-left {
+  justify-content: flex-start;
+}
+.flex-grow {
+  flex: 1;
 }
 .flex-end {
   display: flex;

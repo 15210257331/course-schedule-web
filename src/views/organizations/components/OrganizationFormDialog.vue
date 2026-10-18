@@ -4,19 +4,7 @@
             <el-form-item label="机构名称" prop="name">
                 <el-input v-model="form.name" placeholder="输入机构名称" />
             </el-form-item>
-            <el-row :gutter="12">
-                <el-col :span="12">
-                    <el-form-item label="联系人">
-                        <el-input v-model="form.contactName" placeholder="输入联系人" />
-                    </el-form-item>
-                </el-col>
-                <el-col :span="12">
-                    <el-form-item label="联系电话">
-                        <el-input v-model="form.contactPhone" placeholder="输入联系电话" />
-                    </el-form-item>
-                </el-col>
-            </el-row>
-            <el-form-item label="地址">
+            <el-form-item label="地址" prop="address">
                 <el-input v-model="form.address" placeholder="如：XX路XX号XX教育" />
             </el-form-item>
             <el-form-item label="备注">
@@ -52,13 +40,14 @@
     const form = reactive({
         id: null,
         name: "",
-        contactName: "",
-        contactPhone: "",
         address: "",
         color: null,
         remark: "",
     })
-    const rules = { name: [{ required: true, message: "请输入机构名称", trigger: "blur" }] }
+    const rules = {
+        name: [{ required: true, message: "请输入机构名称", trigger: "blur" }],
+        address: [{ required: true, message: "请输入机构地址", trigger: "blur" }],
+    }
 
     /* 新增时自动生成一个与已有机构不同的颜色：按序取 COURSE_COLORS 中未被占用的第一个 */
     function nextColor() {
@@ -70,8 +59,6 @@
         Object.assign(form, {
             id: row?.id || null,
             name: row?.name || "",
-            contactName: row?.contactName || "",
-            contactPhone: row?.contactPhone || "",
             address: row?.address || "",
             color: row?.color || null,
             remark: row?.remark || "",

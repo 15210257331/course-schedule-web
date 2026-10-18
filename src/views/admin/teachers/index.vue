@@ -16,6 +16,7 @@
             @keyup.enter="load"
             @clear="load"
           />
+          <el-button :icon="RefreshLeft" @click="resetFilters">重置</el-button>
           <el-button type="primary" :icon="Search" @click="load">查询</el-button>
         </div>
       </div>
@@ -115,7 +116,7 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search } from '@element-plus/icons-vue'
+import { Search, RefreshLeft } from '@element-plus/icons-vue'
 import { adminTeacherPage, adminTeacherDetail, adminTeacherUpdateStatus, adminTeacherResetPassword } from '@/api/admin'
 import { dayjs } from '@/utils/date'
 
@@ -152,6 +153,13 @@ async function fetchData() {
 function load() {
   page.value = 1
   fetchData()
+}
+
+/* 重置筛选条件并回到第一页重新查询 */
+function resetFilters() {
+  filters.status = ''
+  filters.keyword = ''
+  load()
 }
 
 async function openDetail(row) {

@@ -1,16 +1,17 @@
 <template>
   <div class="schedule">
     <div class="schedule-board">
-      <!-- 左侧：页面标题 + 课程模板 -->
+      <!-- 左侧：页面标题 + 学生列表 -->
       <div class="side-col">
         <h1 class="page-title">课程日历</h1>
-        <TemplatePanel
-          :templates="templates"
-          :loading="templatesLoading"
-          @create="tplDialogVisible = true"
-          @edit="editTemplate"
-          @remove="removeTemplate"
-          @clone="cloneTemplate"
+        <StudentPanel
+          :students="students"
+          :loading="studentsLoading"
+          @create="stuDialogVisible = true"
+          @edit="editStudent"
+          @remove="removeStudent"
+          @clone="cloneStudent"
+          @attachments="openStudentAttachments"
         />
       </div>
 
@@ -30,7 +31,7 @@
           :view="view"
           :days="visibleDays"
           :courses="coloredCourses"
-          :dragging-template="draggingTemplate"
+          :dragging-student="draggingStudent"
           @update:view="view = $event"
           @template-drop="onTemplateDrop"
           @template-drop-month="onTemplateDropMonth"
@@ -39,22 +40,22 @@
           @go-day="goDay"
         />
 
-        <!-- 日历底下靠右统计：仅周视图（本周课程/已上/收入） -->
+        <!-- 日历底下靠右统计：当前视图时间范围内的课程/已上/收入 -->
         <transition name="fade">
-          <div v-if="view === 'week'" class="week-stats">
+          <div class="week-stats">
             <div class="ws-item">
-              <span class="ws-label">本周</span>
-              <span class="ws-value">{{ weekStats.total }}<em>节</em></span>
+              <span class="ws-label">{{ statsLabel }}</span>
+              <span class="ws-value">{{ viewStats.total }}<em>节</em></span>
             </div>
             <span class="ws-divider" />
             <div class="ws-item">
               <span class="ws-label">已上</span>
-              <span class="ws-value">{{ weekStats.done }}<em>节</em></span>
+              <span class="ws-value">{{ viewStats.done }}<em>节</em></span>
             </div>
             <span class="ws-divider" />
             <div class="ws-item ws-income">
               <span class="ws-label">收入</span>
-              <span class="ws-value">¥{{ formatMoney(weekStats.income) }}</span>
+              <span class="ws-value">¥{{ formatMoney(viewStats.income) }}</span>
             </div>
           </div>
         </transition>
@@ -68,24 +69,26 @@
       ref="dialogRef"
       @saved="reload"
     />
-    <CourseTemplateDialog v-model:visible="tplDialogVisible" ref="tplDialogRef" @saved="onTemplateSaved" />
+    <StudentDialog v-model:visible="stuDialogVisible" ref="stuDialogRef" @saved="onStudentSaved" />
+    <StudentAttachmentDialog v-model:visible="attDialogVisible" :student="attStudent" @removed="reloadStudents" />
   </div>
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import dayjs from 'dayjs'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { courseDetail, courseCreate, courseRemove, courseMove, courseCopyWeek, courseList } from '@/api/course'
-import { templateRemove, templateList } from '@/api/courseTemplate'
+import { studentRemove, studentPage } from '@/api/student'
 import { organizationList } from '@/api/organization'
 import { useMetaStore } from '@/store/meta'
 import { weekDays, mondayOf, toMinutes, COURSE_COLORS } from '@/utils/date'
 import CourseFormDialog from '@/components/CourseFormDialog.vue'
-import CourseTemplateDialog from '@/components/CourseTemplateDialog.vue'
+import StudentDialog from '@/components/StudentDialog.vue'
+import StudentAttachmentDialog from '@/views/students/components/StudentAttachmentDialog.vue'
 import ScheduleToolbar from './components/ScheduleToolbar.vue'
-import TemplatePanel from './components/TemplatePanel.vue'
+import StudentPanel from './components/StudentPanel.vue'
 import ScheduleCalendar from './components/ScheduleCalendar.vue'
 
 const view = ref('week')
@@ -99,14 +102,22 @@ const calendarRef = ref()
 
 const metaStore = useMetaStore()
 
-/* 课程 / 模板数据：直连接口加载 */
+/* 课程 / 学生数据：直连接口加载 */
 const courses = ref([])
-const templates = ref([])
-const templatesLoading = ref(false)
+const students = ref([])
+const studentsLoading = ref(false)
 
-/* 课程模板侧栏 */
-const tplDialogVisible = ref(false)
-const tplDialogRef = ref()
+/* 学生侧栏 */
+const stuDialogVisible = ref(false)
+const stuDialogRef = ref()
+
+/* 课件列表弹窗（学生卡片回形针） */
+const attDialogVisible = ref(false)
+const attStudent = ref(null)
+function openStudentAttachments(t) {
+  attStudent.value = t
+  attDialogVisible.value = true
+}
 
 /* 日历常量（与 ScheduleCalendar 内保持一致）：固定时段单元格 */
 const HOUR_MIN = 8
@@ -170,6 +181,9 @@ function goDay(date) {
   reload()
 }
 
+/* 切换视图时重新加载对应时间范围的课程（如周视图 → 月视图需拉取整月数据） */
+watch(view, () => reload())
+
 async function reload() {
   const start = rangeStart()
   const end = rangeEnd()
@@ -194,21 +208,23 @@ async function locateCourse(courseId) {
   }
 }
 
-async function reloadTemplates() {
-  templatesLoading.value = true
+/* 学生列表：默认请求 20 条（与学生管理页面共用 /students 接口） */
+async function reloadStudents() {
+  studentsLoading.value = true
   try {
-    templates.value = await templateList()
-    metaStore.setCourseTemplates(templates.value)
+    const res = await studentPage({ pageNum: 1, pageSize: 20 })
+    students.value = res.list || []
+    metaStore.setStudents(students.value)
   } catch (e) {
     /* 忽略 */
   } finally {
-    templatesLoading.value = false
+    studentsLoading.value = false
   }
 }
 
-/* 模板保存后：刷新模板侧栏，并重拉课程，使「同步到已排课程」的改动立刻反映到日历 */
-function onTemplateSaved() {
-  reloadTemplates()
+/* 学生保存后：刷新学生侧栏，并重拉课程，使「同步到已排课程」的改动立刻反映到日历 */
+function onStudentSaved() {
+  reloadStudents()
   reload()
 }
 
@@ -222,12 +238,13 @@ async function ensureMeta() {
 }
 
 function rangeStart() {
-  if (view.value === 'month') return dayjs(anchor.value).startOf('month').subtract(7, 'day')
+  /* 月视图：与 42 格月历完全对齐（含月初/月末补齐的相邻月份日期） */
+  if (view.value === 'month') return dayjs(visibleDays.value[0].date).startOf('day')
   if (view.value === 'day') return dayjs(anchor.value).startOf('day')
   return dayjs(mondayOf(anchor.value)).startOf('day')
 }
 function rangeEnd() {
-  if (view.value === 'month') return dayjs(anchor.value).endOf('month').add(7, 'day')
+  if (view.value === 'month') return dayjs(visibleDays.value[41].date).endOf('day')
   if (view.value === 'day') return dayjs(anchor.value).endOf('day')
   return dayjs(mondayOf(anchor.value)).add(7, 'day')
 }
@@ -256,8 +273,13 @@ async function copyNextWeek() {
   reload()
 }
 
-/* ---------- 右下角统计（周视图）：本周总节数 / 已上节数 / 收入 ---------- */
-const weekStats = computed(() => {
+/* ---------- 右下角统计：当前视图时间范围内的总节数 / 已上节数 / 收入 ---------- */
+const statsLabel = computed(() => {
+  if (view.value === 'day') return '今日'
+  if (view.value === 'month') return '本月'
+  return '本周'
+})
+const viewStats = computed(() => {
   let total = 0
   let done = 0
   let income = 0
@@ -300,44 +322,44 @@ async function confirmRemoveCourse(cid) {
   reload()
 }
 
-/* ---------- 模板侧栏操作 ---------- */
-async function editTemplate(t) {
-  tplDialogVisible.value = true
-  await tplDialogRef.value?.openForEdit(t)
+/* ---------- 学生侧栏操作 ---------- */
+async function editStudent(t) {
+  stuDialogVisible.value = true
+  await stuDialogRef.value?.openForEdit(t)
 }
-async function removeTemplate(t) {
-  const tplName = [t.studentName, t.stage].filter(Boolean).join(' · ') || t.title
+async function removeStudent(t) {
+  const stuName = [t.studentName, t.stage].filter(Boolean).join(' · ') || t.title
   const ok = await ElMessageBox.confirm(
-    `确定删除模板「${tplName}」吗？\n\n若勾选“同时删除”，将一并删除该模板已排出的所有课程。`,
-    '删除模板',
+    `确定删除学生「${stuName}」吗？\n\n若选择“同时删除”，将一并删除该学生已排出的所有课程。`,
+    '删除学生',
     {
       type: 'warning',
       confirmButtonText: '同时删除课程',
-      cancelButtonText: '仅删除模板',
+      cancelButtonText: '仅删除学生',
       distinguishCancelAndClose: true,
     }
   )
     .then(() => 'withCourses')
-    .catch((action) => (action === 'cancel' ? 'onlyTemplate' : null))
+    .catch((action) => (action === 'cancel' ? 'onlyStudent' : null))
   if (!ok) return
-  const removed = await templateRemove(t.id, ok === 'withCourses')
-  ElMessage.success(ok === 'withCourses' ? `已删除模板「${tplName}」及其 ${removed} 节课程` : `已删除模板「${tplName}」`)
-  reloadTemplates()
+  const removed = await studentRemove(t.id, ok === 'withCourses')
+  ElMessage.success(ok === 'withCourses' ? `已删除学生「${stuName}」及其 ${removed} 节课程` : `已删除学生「${stuName}」`)
+  reloadStudents()
   reload()
 }
 
-/* 拖拽克隆：把模板数据挂到克隆元素上，落点处读取 */
-const draggingTemplate = ref(null)
-function cloneTemplate(tpl) {
-  draggingTemplate.value = tpl
+/* 拖拽克隆：把学生数据挂到克隆元素上，落点处读取 */
+const draggingStudent = ref(null)
+function cloneStudent(tpl) {
+  draggingStudent.value = tpl
   return tpl
 }
 
 function templateFromEvent(evt) {
   const id = Number(evt.item?.dataset?.id)
-  return draggingTemplate.value?.id === id
-    ? draggingTemplate.value
-    : templates.value.find((t) => t.id === id) || draggingTemplate.value
+  return draggingStudent.value?.id === id
+    ? draggingStudent.value
+    : students.value.find((t) => t.id === id) || draggingStudent.value
 }
 
 function cleanupDropDom(evt) {
@@ -345,7 +367,7 @@ function cleanupDropDom(evt) {
   evt.item?.remove()
 }
 
-/* 模板落到周/日视图某列：吸附到整格（单元格起点），不做分钟级换算 */
+/* 学生落到周/日视图某列：吸附到整格（单元格起点），不做分钟级换算 */
 async function onTemplateDrop(evt, date) {
   const tpl = templateFromEvent(evt)
   cleanupDropDom(evt)
@@ -361,15 +383,15 @@ async function onTemplateDrop(evt, date) {
     return
   }
 
-  await scheduleTemplate(tpl, targetDate, start)
+  await scheduleStudent(tpl, targetDate, start)
 }
 
-/* 模板落到月视图某天（默认 09:00 开始） */
+/* 学生落到月视图某天（默认 09:00 开始） */
 async function onTemplateDropMonth(evt, date) {
   const tpl = templateFromEvent(evt)
   cleanupDropDom(evt)
   if (!tpl) return
-  await scheduleTemplate(tpl, date, 9 * 60)
+  await scheduleStudent(tpl, date, 9 * 60)
 }
 
 /* 分钟数所属单元格的起点（禁用格返回 null，表盘外返回最近的边界起点） */
@@ -384,7 +406,7 @@ function slotStartFor(minute) {
   return SLOT_BOUNDS[SLOT_BOUNDS.length - 2]
 }
 
-async function scheduleTemplate(tpl, date, minute) {
+async function scheduleStudent(tpl, date, minute) {
   const start = dayjs(`${date}T00:00:00`).add(minute, 'minute')
   const end = start.add(tpl.durationMinutes || 60, 'minute')
   const payload = {
@@ -402,13 +424,13 @@ async function scheduleTemplate(tpl, date, minute) {
     status: 'scheduled',
     color: orgColor(tpl.organizationId, tpl.id)
   }
-  // 模板带重复规则：落到课程上自动排满到本月底（含落点当天）
+  // 学生带重复规则：落到课程上自动排满到本月底（含落点当天）
   if (tpl.repeatType) {
     payload.repeatType = tpl.repeatType
     payload.repeatEndDate = dayjs(date).endOf('month').format('YYYY-MM-DD')
   }
   if (tpl.id != null) {
-    payload.templateId = tpl.id
+    payload.studentId = tpl.id
   }
   try {
     await courseCreate(payload)
@@ -632,7 +654,7 @@ function cancelDrag() {
 
 onMounted(() => {
   reload()
-  reloadTemplates()
+  reloadStudents()
   ensureMeta()
   document.addEventListener('mouseleave', cancelDrag)
   window.addEventListener('blur', cancelDrag)
@@ -654,7 +676,7 @@ onBeforeUnmount(() => {
   align-items: stretch;
 }
 
-/* 左侧列：页面标题 + 模板面板 */
+/* 左侧列：页面标题 + 学生面板 */
 .side-col {
   width: 240px;
   flex-shrink: 0;
@@ -678,7 +700,7 @@ onBeforeUnmount(() => {
   min-width: 0;
 }
 
-/* 日历底下靠右统计（周视图） */
+/* 日历底下靠右统计（日/周/月视图通用） */
 .week-stats {
   display: inline-flex;
   align-items: center;
