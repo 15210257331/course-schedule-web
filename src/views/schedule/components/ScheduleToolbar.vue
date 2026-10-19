@@ -9,7 +9,7 @@
             <el-button :icon="ArrowLeft" circle @click="emit('shift', -1)" />
             <span class="range-label">{{ rangeLabel }}</span>
             <el-button :icon="ArrowRight" circle @click="emit('shift', 1)" />
-            <el-button @click="emit('today')">今日</el-button>
+            <el-button @click="emit('today')">{{ todayLabel }}</el-button>
         </div>
         <div class="toolbar-side right">
             <el-button :icon="CopyDocument" @click="emit('copyNextWeek')">复制到下周</el-button>
@@ -19,13 +19,17 @@
 </template>
 
 <script setup>
+    import { computed } from "vue"
     import { ArrowLeft, ArrowRight, Plus, CopyDocument } from "@element-plus/icons-vue"
 
-    defineProps({
+    const props = defineProps({
         view: { type: String, default: "week" },
         rangeLabel: { type: String, default: "" },
     })
     const emit = defineEmits(["update:view", "shift", "today", "copyNextWeek", "create"])
+
+    /* 回到当前时段的按钮文案，随视图类型变化 */
+    const todayLabel = computed(() => ({ day: "今日", week: "本周", month: "本月" })[props.view] || "今日")
 </script>
 
 <style lang="scss" scoped>

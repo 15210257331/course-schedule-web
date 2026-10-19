@@ -94,7 +94,7 @@
     <div v-else class="month-wrap">
       <el-card shadow="never">
         <div class="month-grid">
-          <div v-for="w in ['一', '二', '三', '四', '五', '六', '日']" :key="w" class="month-head">
+          <div v-for="w in ['周一', '周二', '周三', '周四', '周五', '周六', '周日']" :key="w" class="month-head">
             {{ w }}
           </div>
           <div
