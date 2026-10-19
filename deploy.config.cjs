@@ -13,10 +13,17 @@ module.exports = {
         "username": "",
         "password": ""
     },
-    "proxy": {
-        "target": "/api",
-        "proxy_pass": "http://140.143.168.25:9999"
-    },
+    "proxy": [
+        // 新增：uploads请求转发给后端SpringBoot，让WebConfig的静态资源映射生效
+        {
+            "target": "/uploads/",
+            "proxy_pass": "http://140.143.168.25:9999"
+        },
+        {
+            "target": "/api",
+            "proxy_pass": "http://140.143.168.25:9999"
+        },
+    ],
     "healthCheck": {
         "enabled": true,
         "retries": 12,
