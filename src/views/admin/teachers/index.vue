@@ -2,27 +2,27 @@
   <div class="page-container">
     <h2 class="page-title">教师管理</h2>
     <el-card>
-      <div class="flex-between mb-16">
-        <div class="flex filter-bar">
-          <el-select v-model="filters.status" placeholder="状态" clearable style="width: 130px" @change="load">
-            <el-option label="正常" value="active" />
-            <el-option label="已禁用" value="disabled" />
-          </el-select>
-          <el-input
-            v-model="filters.keyword"
-            placeholder="用户名 / 昵称 / 邮箱"
-            clearable
-            style="width: 220px"
-            @keyup.enter="load"
-            @clear="load"
-          />
-          <el-button :icon="RefreshLeft" @click="resetFilters">重置</el-button>
-          <el-button type="primary" :icon="Search" @click="load">查询</el-button>
-        </div>
+      <div class="flex filter-bar">
+        <el-select v-model="filters.status" placeholder="状态" clearable style="width: 130px" class="mr-8" @change="load">
+          <el-option label="正常" value="active" />
+          <el-option label="已禁用" value="disabled" />
+        </el-select>
+        <el-input
+          v-model="filters.keyword"
+          placeholder="用户名 / 昵称 / 邮箱"
+          clearable
+          style="width: 220px"
+          class="mr-8"
+          @keyup.enter="load"
+          @clear="load"
+        />
+        <div class="flex-grow" />
+        <el-button :icon="RefreshLeft" class="mr-8" @click="resetFilters">重置</el-button>
+        <el-button type="primary" :icon="Search" @click="load">查询</el-button>
       </div>
 
-      <el-table :data="list" v-loading="loading" stripe>
-        <el-table-column label="教师" min-width="160">
+      <el-table :data="list" v-loading="loading" class="mt-16" stripe>
+        <el-table-column label="教师" min-width="160" align="center">
           <template #default="{ row }">
             <div class="teacher-cell">
               <span class="teacher-avatar">{{ (row.nickname || row.username || '?').charAt(0) }}</span>
@@ -33,13 +33,13 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="email" label="邮箱" min-width="180" show-overflow-tooltip />
-        <el-table-column prop="subjects" label="任教学科" min-width="120" show-overflow-tooltip>
+        <el-table-column prop="email" label="邮箱" align="center" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="subjects" label="任教学科" align="center" min-width="120" show-overflow-tooltip>
           <template #default="{ row }">{{ row.subjects || '—' }}</template>
         </el-table-column>
         <el-table-column label="课程数" width="80" align="center" prop="courseCount" />
         <el-table-column label="学生数" width="80" align="center" prop="studentCount" />
-        <el-table-column label="注册时间" width="150">
+        <el-table-column label="注册时间" width="150" align="center">
           <template #default="{ row }">{{ fmtTime(row.createdAt) }}</template>
         </el-table-column>
         <el-table-column label="状态" width="90" align="center">
@@ -83,25 +83,61 @@
     </el-card>
 
     <!-- 教师详情弹窗 -->
-    <el-dialog v-model="detailVisible" title="教师详情" width="440px">
-      <div v-if="detail" class="detail-body">
+    <el-dialog v-model="detailVisible" title="教师详情" width="640px" top="6vh">
+      <div v-if="detail" v-loading="detailLoading" class="detail-body">
+        <!-- 头部：头像 + 基本信息 -->
         <div class="detail-head">
           <span class="teacher-avatar lg">{{ (detail.nickname || detail.username || '?').charAt(0) }}</span>
-          <div>
-            <div class="detail-name">{{ detail.nickname || detail.username }}</div>
-            <div class="detail-sub">@{{ detail.username }}</div>
-            <el-tag :type="detail.status === 'active' ? 'success' : 'danger'" size="small" class="mt-4">
-              {{ detail.status === 'active' ? '正常' : '已禁用' }}
-            </el-tag>
+          <div class="head-main">
+            <div class="head-top">
+              <span class="detail-name">{{ detail.nickname || detail.username }}</span>
+              <el-tag :type="detail.status === 'active' ? 'success' : 'danger'" size="small">
+                {{ detail.status === 'active' ? '正常' : '已禁用' }}
+              </el-tag>
+            </div>
+            <div class="head-sub">
+              <span>@{{ detail.username }}</span>
+              <span v-if="detail.subjects" class="head-divider">·</span>
+              <span v-if="detail.subjects">{{ detail.subjects }}</span>
+            </div>
+          </div>
+          <div class="head-login">
+            <span class="head-login-label">最后登录</span>
+            <span class="head-login-time">{{ detail.lastLoginAt ? fmtTime(detail.lastLoginAt) : '从未登录' }}</span>
           </div>
         </div>
-        <el-descriptions :column="1" border size="small" class="mt-16">
+
+        <!-- 本月 / 上月课程收入统计 -->
+        <div class="stat-grid">
+          <div class="stat-card primary">
+            <div class="stat-value">{{ detail.monthTotal ?? 0 }}</div>
+            <div class="stat-label">本月总课数</div>
+          </div>
+          <div class="stat-card success">
+            <div class="stat-value">{{ detail.monthFinished ?? 0 }}</div>
+            <div class="stat-label">本月已上课数</div>
+          </div>
+          <div class="stat-card warning">
+            <div class="stat-value">¥{{ fmtMoney(detail.monthIncome) }}</div>
+            <div class="stat-label">本月已有收入</div>
+          </div>
+          <div class="stat-card info">
+            <div class="stat-value">{{ detail.lastMonthTotal ?? 0 }}</div>
+            <div class="stat-label">上月总课数</div>
+          </div>
+          <div class="stat-card danger">
+            <div class="stat-value">¥{{ fmtMoney(detail.lastMonthIncome) }}</div>
+            <div class="stat-label">上月收入</div>
+          </div>
+        </div>
+
+        <!-- 基本资料 -->
+        <el-descriptions :column="2" border size="small" class="detail-desc">
           <el-descriptions-item label="邮箱">{{ detail.email || '—' }}</el-descriptions-item>
           <el-descriptions-item label="手机号">{{ detail.phone || '—' }}</el-descriptions-item>
           <el-descriptions-item label="任教学科">{{ detail.subjects || '—' }}</el-descriptions-item>
           <el-descriptions-item label="注册时间">{{ fmtTime(detail.createdAt) }}</el-descriptions-item>
-          <el-descriptions-item label="最后登录">{{ detail.lastLoginAt ? fmtTime(detail.lastLoginAt) : '从未登录' }}</el-descriptions-item>
-          <el-descriptions-item v-if="detail.status === 'disabled'" label="禁用原因">
+          <el-descriptions-item v-if="detail.status === 'disabled'" label="禁用原因" :span="2">
             {{ detail.disabledReason || '—' }}
           </el-descriptions-item>
         </el-descriptions>
@@ -129,9 +165,16 @@ const filters = reactive({ status: '', keyword: '' })
 
 const detailVisible = ref(false)
 const detail = ref(null)
+const detailLoading = ref(false)
 
 function fmtTime(t) {
   return t ? dayjs(t).format('YYYY-MM-DD HH:mm') : '—'
+}
+
+/* 金额：千分位 + 两位小数（空值显示 0.00） */
+function fmtMoney(v) {
+  const n = Number(v ?? 0)
+  return Number.isFinite(n) ? n.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'
 }
 
 async function fetchData() {
@@ -163,8 +206,14 @@ function resetFilters() {
 }
 
 async function openDetail(row) {
-  detail.value = await adminTeacherDetail(row.id)
+  detail.value = null
   detailVisible.value = true
+  detailLoading.value = true
+  try {
+    detail.value = await adminTeacherDetail(row.id)
+  } finally {
+    detailLoading.value = false
+  }
 }
 
 async function toggleStatus(row) {
@@ -206,8 +255,10 @@ onMounted(load)
   color: var(--color-ink);
 }
 .filter-bar {
-  gap: 8px;
-  align-items: center;
+  flex-wrap: wrap;
+}
+.flex-grow {
+  flex: 1;
 }
 .flex-end {
   display: flex;
@@ -246,27 +297,104 @@ onMounted(load)
   font-size: 12px;
   color: var(--color-muted);
 }
+
+/* ---------- 详情弹窗 ---------- */
 .detail-body {
   .detail-head {
     display: flex;
     align-items: center;
     gap: 14px;
+    padding: 4px 0 2px;
   }
+
+  .head-main {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .head-top {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
   .detail-name {
-    font-size: 16px;
-    font-weight: 600;
+    font-size: 17px;
+    font-weight: 700;
     color: var(--color-ink);
   }
-  .detail-sub {
+
+  .head-sub {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 3px;
     font-size: 12px;
     color: var(--color-muted);
-    margin-bottom: 4px;
+
+    .head-divider {
+      color: var(--color-border);
+    }
   }
-}
-.mt-16 {
-  margin-top: 16px;
-}
-.mt-4 {
-  margin-top: 4px;
+
+  .head-login {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+    flex-shrink: 0;
+
+    .head-login-label {
+      font-size: 11px;
+      color: var(--color-muted);
+    }
+    .head-login-time {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--color-secondary);
+      font-variant-numeric: tabular-nums;
+    }
+  }
+
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
+    margin: 16px 0;
+
+    @media (max-width: 720px) {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  .stat-card {
+    padding: 12px 10px;
+    border-radius: 10px;
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+    text-align: center;
+
+    .stat-value {
+      font-size: 17px;
+      font-weight: 700;
+      line-height: 1.3;
+      font-variant-numeric: tabular-nums;
+    }
+    .stat-label {
+      margin-top: 3px;
+      font-size: 12px;
+      color: var(--color-muted);
+    }
+
+    &.primary .stat-value { color: #635bff; }
+    &.success .stat-value { color: #30b130; }
+    &.warning .stat-value { color: #f5a623; }
+    &.info .stat-value { color: #0073e6; }
+    &.danger .stat-value { color: #df1b41; }
+  }
+
+  .detail-desc {
+    margin-top: 2px;
+  }
 }
 </style>

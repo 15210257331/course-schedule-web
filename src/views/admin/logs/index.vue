@@ -2,41 +2,40 @@
     <div class="page-container">
         <h2 class="page-title">操作日志</h2>
         <el-card>
-            <div class="flex-between mb-16">
-                <div class="flex filter-bar">
-                    <el-select v-model="filters.module" placeholder="模块" clearable style="width: 140px" @change="load">
-                        <el-option label="登录认证" value="auth" />
-                        <el-option label="教师管理" value="teacher" />
-                        <el-option label="消息推送" value="message" />
-                        <el-option label="课程" value="course" />
-                        <el-option label="学生" value="student" />
-                        <el-option label="机构" value="organization" />
-                        <el-option label="课件" value="attachment" />
-                        <el-option label="数据备份" value="backup" />
-                    </el-select>
-                    <el-select v-model="filters.action" placeholder="动作" clearable style="width: 160px" @change="load">
-                        <el-option label="登录" value="LOGIN" />
-                        <el-option label="登录失败" value="LOGIN_FAIL" />
-                        <el-option label="新增" value="CREATE" />
-                        <el-option label="修改" value="UPDATE" />
-                        <el-option label="删除" value="DELETE" />
-                        <el-option label="状态变更" value="STATUS" />
-                        <el-option label="重置密码" value="RESET_PASSWORD" />
-                        <el-option label="撤回" value="REVOKE" />
-                        <el-option label="发布" value="PUBLISH" />
-                        <el-option label="移动" value="MOVE" />
-                        <el-option label="整周复制" value="COPY_WEEK" />
-                        <el-option label="立即备份" value="RUN_NOW" />
-                        <el-option label="存储切换" value="SET_STORAGE" />
-                        <el-option label="恢复" value="RESTORE" />
-                    </el-select>
-                    <el-input v-model="filters.keyword" placeholder="用户名 / 详情" clearable style="width: 200px" @keyup.enter="load" @clear="load" />
-                    <el-button :icon="RefreshLeft" @click="resetFilters">重置</el-button>
-                    <el-button type="primary" :icon="Search" @click="load">查询</el-button>
-                </div>
+            <div class="flex filter-bar">
+                <el-select v-model="filters.module" placeholder="模块" clearable style="width: 140px" class="mr-8" @change="load">
+                    <el-option label="登录认证" value="auth" />
+                    <el-option label="教师管理" value="teacher" />
+                    <el-option label="消息推送" value="message" />
+                    <el-option label="课程" value="course" />
+                    <el-option label="学生" value="student" />
+                    <el-option label="机构" value="organization" />
+                    <el-option label="课件" value="attachment" />
+                    <el-option label="数据备份" value="backup" />
+                </el-select>
+                <el-select v-model="filters.action" placeholder="动作" clearable style="width: 160px" class="mr-8" @change="load">
+                    <el-option label="登录" value="LOGIN" />
+                    <el-option label="登录失败" value="LOGIN_FAIL" />
+                    <el-option label="新增" value="CREATE" />
+                    <el-option label="修改" value="UPDATE" />
+                    <el-option label="删除" value="DELETE" />
+                    <el-option label="状态变更" value="STATUS" />
+                    <el-option label="重置密码" value="RESET_PASSWORD" />
+                    <el-option label="撤回" value="REVOKE" />
+                    <el-option label="发布" value="PUBLISH" />
+                    <el-option label="移动" value="MOVE" />
+                    <el-option label="整周复制" value="COPY_WEEK" />
+                    <el-option label="立即备份" value="RUN_NOW" />
+                    <el-option label="存储切换" value="SET_STORAGE" />
+                    <el-option label="恢复" value="RESTORE" />
+                </el-select>
+                <el-input v-model="filters.keyword" placeholder="用户名 / 详情" clearable style="width: 200px" class="mr-8" @keyup.enter="load" @clear="load" />
+                <div class="flex-grow" />
+                <el-button :icon="RefreshLeft" class="mr-8" @click="resetFilters">重置</el-button>
+                <el-button type="primary" :icon="Search" @click="load">查询</el-button>
             </div>
 
-            <el-table :data="list" v-loading="loading" stripe>
+            <el-table :data="list" v-loading="loading" class="mt-16" stripe>
                 <el-table-column label="时间" width="200" align="center">
                     <template #default="{ row }">{{ fmtTime(row.createdAt) }}</template>
                 </el-table-column>
@@ -190,6 +189,10 @@
     .filter-bar {
         gap: 8px;
         align-items: center;
+        flex-wrap: wrap;
+    }
+    .flex-grow {
+        flex: 1;
     }
     .flex-end {
         display: flex;

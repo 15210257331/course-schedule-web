@@ -22,6 +22,9 @@ export const adminMessagePage = (data) => request.post('/admin/messages/page', d
 /** 消息详情 */
 export const adminMessageDetail = (id) => request.post('/admin/messages/detail', { id })
 
+/** 消息阅读明细（哪些老师已读 / 未读） */
+export const adminMessageReadDetail = (id) => request.post('/admin/messages/read-detail', { id })
+
 /** 发布消息 */
 export const adminMessageCreate = (data) => request.post('/admin/messages', data)
 

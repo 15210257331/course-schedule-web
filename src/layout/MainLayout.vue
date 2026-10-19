@@ -20,7 +20,7 @@
                     </router-link>
                 </div>
 
-                <div class="search-zone">
+                <div v-if="!isAdmin" class="search-zone">
                     <div class="search-box">
                         <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" />
