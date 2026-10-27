@@ -399,10 +399,11 @@
         }
     }
 
-    /* 消息详情弹窗 */
+    /* 消息详情弹窗：正文带标题与阅读状态 */
     function showMessageDetail(m) {
         ElMessageBox.alert(m.content, `【${msgTypeLabel(m.type)}】${m.title}`, {
             confirmButtonText: "知道了",
+            dangerouslyUseHTMLString: false,
             callback: () => openMessage(m),
         })
     }

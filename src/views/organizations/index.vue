@@ -162,7 +162,7 @@ onMounted(() => {
 <style lang="scss" scoped>
 .page-title {
   margin: 0;
-  font-size: 18px;
+   font-size: 20px;
   font-weight: 700;
   color: var(--color-ink);
 }

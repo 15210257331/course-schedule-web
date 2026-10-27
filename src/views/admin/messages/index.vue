@@ -6,12 +6,12 @@
     </div>
     <el-card>
       <div class="flex filter-bar">
-        <el-select v-model="filters.type" placeholder="类型" clearable style="width: 120px" class="mr-8" @change="load">
+        <el-select v-model="filters.type" placeholder="类型" clearable style="width: 120px" class="mr-8">
           <el-option label="公告" value="announcement" />
           <el-option label="活动" value="activity" />
           <el-option label="通知" value="notice" />
         </el-select>
-        <el-select v-model="filters.status" placeholder="状态" clearable style="width: 120px" class="mr-8" @change="load">
+        <el-select v-model="filters.status" placeholder="状态" clearable style="width: 120px" class="mr-8">
           <el-option label="已发布" value="published" />
           <el-option label="已撤回" value="revoked" />
         </el-select>
@@ -22,7 +22,6 @@
           style="width: 200px"
           class="mr-8"
           @keyup.enter="load"
-          @clear="load"
         />
         <div class="flex-grow" />
         <el-button :icon="RefreshLeft" class="mr-8" @click="resetFilters">重置</el-button>
@@ -104,18 +103,18 @@
         <div class="md-head">
           <el-tag size="small" :type="typeTagType(detail.type)">{{ typeLabel(detail.type) }}</el-tag>
           <h3 class="md-title">{{ detail.title }}</h3>
-        </div>
-        <p class="md-content">{{ detail.content }}</p>
-        <el-descriptions :column="2" border size="small" class="mt-16">
-          <el-descriptions-item label="目标范围">
-            {{ detail.targetType === 'all' ? '全部教师' : `指定 ${detail.targetCount || 0} 人` }}
-          </el-descriptions-item>
-          <el-descriptions-item label="状态">
+          <el-tag :type="detail.status === 'published' ? 'success' : 'info'" size="small" class="md-status">
             {{ detail.status === 'published' ? '已发布' : '已撤回' }}
-          </el-descriptions-item>
-          <el-descriptions-item label="发布时间">{{ fmtTime(detail.createdAt) }}</el-descriptions-item>
-          <el-descriptions-item label="阅读数">{{ detail.readCount || 0 }}</el-descriptions-item>
-        </el-descriptions>
+          </el-tag>
+        </div>
+        <div class="md-meta">
+          <span>目标范围：{{ detail.targetType === 'all' ? '全部教师' : `指定 ${detail.targetCount || 0} 人` }}</span>
+          <span class="md-dot">·</span>
+          <span>发布时间：{{ fmtTime(detail.createdAt) }}</span>
+          <span class="md-dot">·</span>
+          <span>阅读 {{ detail.readCount || 0 }} 人</span>
+        </div>
+        <div class="md-content">{{ detail.content }}</div>
       </div>
     </el-dialog>
 
@@ -285,7 +284,7 @@ onMounted(load)
 <style lang="scss" scoped>
 .page-title {
   margin: 0;
-  font-size: 18px;
+   font-size: 20px;
   font-weight: 700;
   color: var(--color-ink);
 }
@@ -323,20 +322,51 @@ onMounted(load)
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-bottom: 12px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
   }
   .md-title {
     margin: 0;
     font-size: 16px;
     font-weight: 600;
     color: var(--color-ink);
+    flex: 1;
+    min-width: 0;
+    word-break: break-all;
+  }
+  .md-status {
+    flex-shrink: 0;
+  }
+  .md-meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px 12px;
+    margin-bottom: 14px;
+    font-size: 12px;
+    color: var(--color-muted);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+
+    .md-dot {
+      color: var(--color-border);
+    }
   }
   .md-content {
     margin: 0;
+    padding: 14px 16px;
     font-size: 13px;
-    line-height: 1.7;
+    line-height: 1.8;
     color: var(--color-secondary);
     white-space: pre-wrap;
+    word-break: break-word;
+    background: var(--color-canvas);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    max-height: 320px;
+    overflow-y: auto;
   }
 }
 

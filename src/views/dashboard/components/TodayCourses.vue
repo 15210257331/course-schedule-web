@@ -21,6 +21,9 @@
                         <template v-if="c.studentName"> · {{ c.courseType }}</template>
                     </p>
                 </div>
+                <el-tooltip content="在课表中查看" placement="top">
+                    <el-icon class="today-jump" @click="goSchedule(c)"><Calendar /></el-icon>
+                </el-tooltip>
             </div>
         </div>
     </div>
@@ -28,9 +31,17 @@
 
 <script setup>
     import { Calendar } from "@element-plus/icons-vue"
+    import { useRouter } from "vue-router"
     import { formatDateTime } from "@/utils/date"
 
     defineProps({ courses: { type: Array, default: () => [] } })
+
+    const router = useRouter()
+
+    /* 跳到课表页并定位到该课程所在日的日视图 */
+    function goSchedule(c) {
+        router.push({ name: "schedule", query: { course: c.id } })
+    }
 </script>
 
 <style lang="scss" scoped>
@@ -126,6 +137,19 @@
             margin: 3px 0 0;
             font-size: 12px;
             color: var(--color-muted);
+        }
+    }
+
+    .today-jump {
+        margin-left: auto;
+        flex-shrink: 0;
+        font-size: 15px;
+        color: var(--color-muted);
+        cursor: pointer;
+        transition: color 0.15s ease;
+
+        &:hover {
+            color: var(--color-primary);
         }
     }
 </style>

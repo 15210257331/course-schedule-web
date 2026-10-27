@@ -84,14 +84,19 @@
         <el-col :span="12"></el-col>
       </el-row>
 
-      <el-form-item label="上课机构">
+      <!-- 家教：只填上课地点；机构课程：只选上课机构（互斥，切换类型时清掉另一个） -->
+      <el-row v-if="form.courseType === '家教'">
+        <el-col :span="12">
+          <el-form-item label="上课地点" prop="location">
+            <el-input v-model="form.location" placeholder="如：学生家中 / XX 小区 3-2-501" />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12"></el-col>
+      </el-row>
+      <el-form-item v-else label="上课机构">
         <el-select v-model="form.organizationId" clearable filterable placeholder="选择机构" style="width: 100%">
           <el-option v-for="o in metaStore.organizations" :key="o.id" :label="o.name" :value="o.id" />
         </el-select>
-      </el-form-item>
-
-      <el-form-item label="上课地点">
-        <el-input v-model="form.location" placeholder="如：XX教育 302 室" />
       </el-form-item>
 
       <el-form-item label="备注">
@@ -213,6 +218,19 @@ watch(
   }
 )
 
+/* 课程类型切换：家教 ↔ 机构课程时清掉互斥字段，避免两个字段同时有值 */
+watch(
+  () => form.courseType,
+  (type, prev) => {
+    if (type === prev) return
+    if (type === '家教') {
+      form.organizationId = null
+    } else if (prev === '家教') {
+      form.location = ''
+    }
+  }
+)
+
 /* 弹窗完全关闭后重置表单与验证状态，避免下次打开残留上次输入和错误提示 */
 function onClosed() {
   initForm()
@@ -243,17 +261,19 @@ async function submit() {
   /* 课程标题：学生姓名 + 科目 + 课程类型（如「张三数学一对一」） */
   const title = [form.studentName, form.subject, form.courseType].filter(Boolean).join('') || '课程'
   const feeValue = form.fee === '' || form.fee == null ? null : form.fee
+  /* 家教只有地点、机构课程只有机构：互斥字段提交前清空，避免脏数据入库 */
+  const isTutor = form.courseType === '家教'
   const payload = {
     title,
     studentName: form.studentName,
-    organizationId: form.organizationId,
+    organizationId: isTutor ? null : form.organizationId,
     subject: form.subject,
     stage: form.stage,
     courseType: form.courseType,
     startTime: form.startTime,
     endTime: form.endTime,
     fee: feeValue,
-    location: form.location,
+    location: isTutor ? form.location : '',
     note: form.note,
     status: form.status || 'scheduled',
     color: form.color

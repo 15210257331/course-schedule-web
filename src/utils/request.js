@@ -38,7 +38,8 @@ request.interceptors.response.use(
   (error) => {
     const status = error.response?.status
     const message =
-      error.response?.data?.message || (status === 401 ? '未登录或登录已过期' : '网络异常，请稍后重试')
+      error.response?.data?.message ||
+      (status === 413 ? '文件过大，超出服务器上传限制' : status === 401 ? '未登录或登录已过期' : '网络异常，请稍后重试')
     if (status === 401) {
       const authStore = useAuthStore()
       authStore.logout()

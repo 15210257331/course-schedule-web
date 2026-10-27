@@ -18,17 +18,18 @@
           end-placeholder="结束日期"
           style="width: 200px"
           class="mr-8"
-          @change="load"
         />
-        <el-input
+        <!-- 学生姓名联想下拉：选项来自学生管理，按姓名筛选 -->
+        <el-select
           v-model="filters.studentName"
           placeholder="学生姓名"
           clearable
+          filterable
           style="width: 150px"
           class="mr-8"
-          @keyup.enter="load"
-          @clear="load"
-        />
+        >
+          <el-option v-for="s in studentOptions" :key="s.id" :label="s.studentName" :value="s.studentName" />
+        </el-select>
         <div class="flex-grow" />
         <el-button :icon="RefreshLeft" class="mr-8" @click="resetFilters">重置</el-button>
         <el-button type="primary" :icon="Search" @click="load">查询</el-button>
@@ -55,15 +56,18 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import dayjs from 'dayjs'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Download, Plus, Search, RefreshLeft } from '@element-plus/icons-vue'
 import { coursePage, courseRemove } from '@/api/course'
+import { studentPage } from '@/api/student'
+import { useMetaStore } from '@/store/meta'
 import CourseFormDialog from '@/components/CourseFormDialog.vue'
 import CourseTable from './components/CourseTable.vue'
 
+const metaStore = useMetaStore()
 const list = ref([])
 const total = ref(0)
 const loading = ref(false)
@@ -72,6 +76,27 @@ const range = ref([dayjs().subtract(1, 'month').format('YYYY-MM-DD'), dayjs().ad
 const dialogVisible = ref(false)
 const dialogRef = ref()
 const route = useRoute()
+
+/* 学生姓名联想下拉选项（去重，与课件/课表页共用 metaStore 缓存） */
+const studentOptions = computed(() => {
+  const seen = new Set()
+  return metaStore.students.filter((s) => {
+    if (!s.studentName || seen.has(s.studentName)) return false
+    seen.add(s.studentName)
+    return true
+  })
+})
+
+async function ensureStudents() {
+  try {
+    if (!metaStore.students.length) {
+      const res = await studentPage({ pageNum: 1, pageSize: 100 })
+      metaStore.setStudents(res.list || [])
+    }
+  } catch (e) {
+    /* 忽略：下拉为空可手输查询 */
+  }
+}
 
 /* 分页（服务端分页，默认每页 20 条） */
 const page = ref(1)
@@ -181,6 +206,7 @@ onMounted(() => {
     filters.studentName = String(route.query.title)
     range.value = [dayjs().subtract(1, 'year').format('YYYY-MM-DD'), dayjs().add(1, 'year').format('YYYY-MM-DD')]
   }
+  ensureStudents()
   load()
 })
 </script>
@@ -188,7 +214,7 @@ onMounted(() => {
 <style lang="scss" scoped>
 .page-title {
   margin: 0;
-  font-size: 18px;
+    font-size: 20px;
   font-weight: 700;
   color: var(--color-ink);
 }

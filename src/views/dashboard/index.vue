@@ -18,8 +18,8 @@
           <h3 class="card-title">收入趋势</h3>
           <el-radio-group v-model="days" size="small" @change="loadReport">
             <el-radio-button :value="7">近 7 天</el-radio-button>
-            <el-radio-button :value="30">近 30 天</el-radio-button>
-            <el-radio-button :value="90">近 90 天</el-radio-button>
+            <el-radio-button :value="30">近 1 个月</el-radio-button>
+            <el-radio-button :value="90">近 3 个月</el-radio-button>
           </el-radio-group>
         </div>
         <div class="trend-meta">
@@ -27,8 +27,8 @@
             共 ¥{{ formatMoney(report.total) }} · {{ report.totalMinutes }} 小时 · {{ report.courseCount }} 节
           </span>
         </div>
-        <div v-if="hasTrend" ref="trendRef" class="trend-chart" />
-        <el-empty v-else description="暂无数据" :image-size="80" />
+        <div v-show="hasTrend" v-loading="reportLoading" ref="trendRef" class="trend-chart" />
+        <el-empty v-if="!hasTrend && !reportLoading" description="暂无数据" :image-size="80" />
       </div>
 
       <TodayCourses :courses="todayCourses" />
@@ -36,26 +36,26 @@
 
     <!-- 收入构成（机构 / 学生 / 科目） -->
     <div class="grid-pie">
-      <div class="card">
+      <div class="card" v-loading="reportLoading">
         <div class="card-head">
           <h3 class="card-title">机构占比</h3>
         </div>
-        <div v-if="hasOrg" ref="orgRef" class="pie-chart" />
-        <el-empty v-else description="暂无数据" :image-size="80" />
+        <div v-show="hasOrg" ref="orgRef" class="pie-chart" />
+        <el-empty v-if="!hasOrg && !reportLoading" description="暂无数据" :image-size="80" />
       </div>
-      <div class="card">
+      <div class="card" v-loading="reportLoading">
         <div class="card-head">
           <h3 class="card-title">学生占比</h3>
         </div>
-        <div v-if="hasStudent" ref="studentRef" class="pie-chart" />
-        <el-empty v-else description="暂无数据" :image-size="80" />
+        <div v-show="hasStudent" ref="studentRef" class="pie-chart" />
+        <el-empty v-if="!hasStudent && !reportLoading" description="暂无数据" :image-size="80" />
       </div>
-      <div class="card">
+      <div class="card" v-loading="reportLoading">
         <div class="card-head">
           <h3 class="card-title">学段占比</h3>
         </div>
-        <div v-if="hasStage" ref="subjectRef" class="pie-chart" />
-        <el-empty v-else description="暂无数据" :image-size="80" />
+        <div v-show="hasStage" ref="subjectRef" class="pie-chart" />
+        <el-empty v-if="!hasStage && !reportLoading" description="暂无数据" :image-size="80" />
       </div>
     </div>
   </div>
@@ -78,8 +78,9 @@ const router = useRouter()
 
 const summary = reactive({})
 const todayCourses = ref([])
-const report = reactive({ total: 0, totalMinutes: 0, courseCount: 0, trend: [], byOrganization: [], byStudent: [], byStage: [] })
+const report = reactive({ total: 0, totalMinutes: 0, courseCount: 0, trend: [], courseTrend: [], byOrganization: [], byStudent: [], byStage: [] })
 const days = ref(30)
+const reportLoading = ref(false)
 
 /* 有数据才渲染图表，无数据显示空态（避免空 echarts 报错/空白） */
 const hasTrend = computed(() => (report.trend || []).length > 0)
@@ -133,46 +134,72 @@ function chartColors() {
   }
 }
 
-function renderTrend(data) {
+function renderTrend(data, courseTrend) {
   if (!trendRef.value) {
     // 图表元素已被空态 v-if 移除：释放旧实例，避免复用 detached DOM
     trendChart?.dispose()
     trendChart = null
     return
   }
-  const daysArr = data.map((d) => dayjs(d.day).format('M月D日'))
-  const values = data.map((d) => Number(d.income))
+  /* 收入与上课数量按天对齐：收入只统计已上完的课，无收入的日期补 0 */
+  const dayArr = data.map((d) => dayjs(d.day).format('M月D日'))
+  const incomeMap = new Map(data.map((d) => [d.day, Number(d.income) || 0]))
+  const countMap = new Map((courseTrend || []).map((d) => [d.day, Number(d.count) || 0]))
+  const incomeValues = data.map((d) => incomeMap.get(d.day) ?? 0)
+  const countValues = data.map((d) => countMap.get(d.day) ?? 0)
   const c = chartColors()
   if (!trendChart) trendChart = echarts.init(trendRef.value)
   trendChart.setOption(
     {
-      grid: { left: 44, right: 16, top: 20, bottom: 30 },
+      grid: { left: 44, right: 44, top: 40, bottom: 30 },
       tooltip: { trigger: 'axis' },
+      legend: { data: ['收入', '上课数量'], textStyle: { color: c.axis }, top: 0 },
       xAxis: {
         type: 'category',
-        data: daysArr,
+        data: dayArr,
         boundaryGap: true,
         axisLine: { lineStyle: { color: c.split } },
         axisLabel: {
           color: c.axis,
-          interval: daysArr.length > 40 ? Math.ceil(daysArr.length / 12) - 1 : 'auto',
-          rotate: daysArr.length > 40 ? 30 : 0
+          interval: dayArr.length > 40 ? Math.ceil(dayArr.length / 12) - 1 : 'auto',
+          rotate: dayArr.length > 40 ? 30 : 0
         }
       },
-      yAxis: {
-        type: 'value',
-        axisLabel: { color: c.axis },
-        splitLine: { lineStyle: { color: c.split } }
-      },
+      yAxis: [
+        {
+          type: 'value',
+          name: '收入(元)',
+          nameTextStyle: { color: c.axis },
+          axisLabel: { color: c.axis },
+          splitLine: { lineStyle: { color: c.split } }
+        },
+        {
+          type: 'value',
+          name: '上课数量',
+          minInterval: 1,
+          nameTextStyle: { color: c.axis },
+          axisLabel: { color: c.axis },
+          splitLine: { show: false }
+        }
+      ],
       series: [
         {
+          name: '收入',
           type: 'line',
-          data: values,
+          data: incomeValues,
           smooth: true,
           symbol: 'none',
           lineStyle: { width: 2 },
           areaStyle: { opacity: 0.12 },
           itemStyle: { color: '#635bff' }
+        },
+        {
+          name: '上课数量',
+          type: 'bar',
+          yAxisIndex: 1,
+          data: countValues,
+          barMaxWidth: 24,
+          itemStyle: { color: '#df1b41', borderRadius: [4, 4, 0, 0] }
         }
       ]
     },
@@ -182,7 +209,7 @@ function renderTrend(data) {
 
 function pieOption(data, palette) {
   return {
-    tooltip: { trigger: 'item', formatter: '{b}: ¥{c}（{d}%）' },
+    tooltip: { trigger: 'item', formatter: '{b}: {d}%' },
     color: palette,
     series: [
       {
@@ -190,7 +217,7 @@ function pieOption(data, palette) {
         radius: ['42%', '68%'],
         center: ['50%', '46%'],
         data: data.map((d) => ({ name: d.name || '未分类', value: Number(d.value) })),
-        label: { formatter: '{b}\n¥{c}', fontSize: 11 },
+        label: { formatter: '{b}\n{d}%', fontSize: 11 },
         itemStyle: { borderRadius: 4, borderColor: 'transparent', borderWidth: 2 }
       }
     ]
@@ -222,20 +249,26 @@ function renderPies(r) {
 }
 
 async function loadReport() {
-  const r = await dashboardIncomeReport(days.value)
-  Object.assign(report, {
-    total: 0,
-    totalMinutes: 0,
-    courseCount: 0,
-    trend: [],
-    byOrganization: [],
-    byStudent: [],
-    byStage: [],
-    ...r
-  })
-  await nextTick()
-  renderTrend(report.trend || [])
-  renderPies(r)
+  reportLoading.value = true
+  try {
+    const r = await dashboardIncomeReport(days.value)
+    Object.assign(report, {
+      total: 0,
+      totalMinutes: 0,
+      courseCount: 0,
+      trend: [],
+      courseTrend: [],
+      byOrganization: [],
+      byStudent: [],
+      byStage: [],
+      ...r
+    })
+    await nextTick()
+    renderTrend(report.trend || [], report.courseTrend || [])
+    renderPies(r)
+  } finally {
+    reportLoading.value = false
+  }
 }
 
 async function load() {

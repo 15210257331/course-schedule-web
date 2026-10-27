@@ -1,4 +1,5 @@
 import request from '@/utils/request'
+import { UPLOAD_TIMEOUT } from './attachment'
 
 /* ---------- 管理端 - 教师管理 ---------- */
 
@@ -75,7 +76,8 @@ export const adminBackupRestore = (file) => {
   const form = new FormData()
   form.append('file', file)
   return request.post('/admin/backup/restore', form, {
-    headers: { 'Content-Type': 'multipart/form-data' }
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: UPLOAD_TIMEOUT
   })
 }
 

@@ -17,7 +17,7 @@
     </div>
 
     <!-- 趋势图 -->
-    <el-card class="mt-16">
+    <el-card class="mt-16" v-loading="loading">
       <div class="chart-head">
         <span class="chart-title">平台趋势</span>
         <el-radio-group v-model="days" size="small" @change="load">
@@ -26,8 +26,8 @@
           <el-radio-button :value="90">近 90 天</el-radio-button>
         </el-radio-group>
       </div>
-      <div v-if="hasTrend" ref="trendRef" class="trend-chart"></div>
-      <el-empty v-else description="暂无数据" :image-size="80" />
+      <div v-show="hasTrend" ref="trendRef" class="trend-chart"></div>
+      <el-empty v-if="!hasTrend && !loading" description="暂无数据" :image-size="80" />
     </el-card>
 
     <!-- 最新动态 -->
@@ -96,6 +96,7 @@ const loading = ref(false)
 const cards = ref({})
 const teacherTrend = ref([])
 const courseTrend = ref([])
+const studentTrend = ref([])
 const recentTeachers = ref([])
 const recentMessages = ref([])
 
@@ -114,9 +115,9 @@ const statCards = computed(() => [
     bg: 'rgba(99, 91, 255, 0.1)'
   },
   {
-    label: '本月新增教师',
-    value: cards.value.teacherNewMonth ?? 0,
-    sub: `今日 +${cards.value.teacherNewToday ?? 0}`,
+    label: '本月学生数',
+    value: cards.value.studentNewMonth ?? 0,
+    sub: `今日 +${cards.value.studentNewToday ?? 0} · 累计 ${cards.value.studentTotal ?? 0}`,
     icon: UserFilled,
     color: '#30b130',
     bg: 'rgba(48, 177, 48, 0.1)'
@@ -172,7 +173,7 @@ function renderTrend() {
     {
       grid: { left: 44, right: 16, top: 36, bottom: 30 },
       tooltip: { trigger: 'axis' },
-      legend: { data: ['新增教师', '课程数'], textStyle: { color: c.axis }, top: 0 },
+      legend: { data: ['新增教师', '课程数', '新增学生'], textStyle: { color: c.axis }, top: 0 },
       xAxis: {
         type: 'category',
         data: dayArr,
@@ -210,6 +211,15 @@ function renderTrend() {
           lineStyle: { width: 2 },
           areaStyle: { opacity: 0.12 },
           itemStyle: { color: '#30b130' }
+        },
+        {
+          name: '新增学生',
+          type: 'line',
+          data: studentTrend.value.map((d) => Number(d.count)),
+          smooth: true,
+          symbol: 'none',
+          lineStyle: { width: 2 },
+          itemStyle: { color: '#df1b41' }
         }
       ]
     },
@@ -224,6 +234,7 @@ async function load() {
     cards.value = res.cards || {}
     teacherTrend.value = res.teacherTrend || []
     courseTrend.value = res.courseTrend || []
+    studentTrend.value = res.studentTrend || []
     recentTeachers.value = res.recentTeachers || []
     recentMessages.value = res.recentMessages || []
     await nextTick()
@@ -252,7 +263,7 @@ onBeforeUnmount(() => {
 <style lang="scss" scoped>
 .page-title {
   margin: 0 0 16px;
-  font-size: 18px;
+   font-size: 20px;
   font-weight: 700;
   color: var(--color-ink);
 }

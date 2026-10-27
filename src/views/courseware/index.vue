@@ -71,6 +71,7 @@
               <img v-if="isImage(a)" :src="a.filePath" alt="" loading="lazy" />
               <el-icon v-else class="cw-thumb-icon"><component :is="typeIcon(a)" /></el-icon>
               <span class="cw-ext">{{ extLabel(a) }}</span>
+              <span class="cw-size">{{ formatSize(a.fileSize) }}</span>
               <span v-if="isPreviewable(a)" class="cw-zoom"><el-icon><ZoomIn /></el-icon></span>
             </div>
             <div class="cw-body">
@@ -79,9 +80,9 @@
                 <el-icon class="cw-students-icon"><User /></el-icon>
                 <span class="cw-students-text">{{ a.studentName }}</span>
               </div>
-              <div class="cw-meta">
+              <!-- <div class="cw-meta">
                 <span class="cw-size">{{ formatSize(a.fileSize) }}</span>
-              </div>
+              </div> -->
               <div class="cw-foot">
                 <span class="cw-tag" :class="`is-${fileType(a)}`">{{ fileTypeLabel(a) }}</span>
                 <span class="cw-date">{{ formatDate(a.createdAt) }}</span>
@@ -91,6 +92,9 @@
                   </el-tooltip>
                   <el-tooltip content="下载" placement="top">
                     <el-icon class="cw-op" @click="downloadAttachment(a)"><Download /></el-icon>
+                  </el-tooltip>
+                  <el-tooltip content="修改关联学生" placement="top">
+                    <el-icon class="cw-op" @click="openEditStudents(a)"><UserFilled /></el-icon>
                   </el-tooltip>
                   <el-tooltip content="删除" placement="top">
                     <el-icon class="cw-op danger" @click="removeAttachment(a)"><Delete /></el-icon>
@@ -120,6 +124,11 @@
     <!-- 上传时选择学生（可多选） -->
     <el-dialog v-model="uploadDialogVisible" title="选择学生" width="480px">
       <p class="upload-tip">课件可关联一个或多个学生，请选择关联学生：</p>
+      <p v-if="pendingFileName" class="upload-file">
+        <el-icon><Document /></el-icon>
+        <span class="upload-file-name" :title="pendingFileName">{{ pendingFileName }}</span>
+        <span class="upload-file-size">{{ formatSize(pendingFileSize) }}</span>
+      </p>
       <el-select
         v-model="uploadStudentIds"
         placeholder="选择学生（可多选）"
@@ -138,6 +147,27 @@
       </template>
     </el-dialog>
 
+    <!-- 修改关联学生 -->
+    <el-dialog v-model="editStudentsVisible" title="修改关联学生" width="480px">
+      <p class="upload-tip">{{ editStudentsFile?.fileName }}</p>
+      <el-select
+        v-model="editStudentIds"
+        placeholder="选择学生（可多选）"
+        multiple
+        filterable
+        collapse-tags
+        collapse-tags-tooltip
+        style="width: 100%"
+        size="large"
+      >
+        <el-option v-for="s in metaStore.students" :key="s.id" :label="`${s.studentName}（${s.stage || '未设学段'}）`" :value="s.id" />
+      </el-select>
+      <template #footer>
+        <el-button @click="editStudentsVisible = false">取消</el-button>
+        <el-button type="primary" :loading="savingStudents" :disabled="!editStudentIds.length" @click="confirmEditStudents">保存</el-button>
+      </template>
+    </el-dialog>
+
     <el-image-viewer v-if="viewerVisible" teleported :url-list="viewerUrl ? [viewerUrl] : []" @close="viewerVisible = false" />
   </div>
 </template>
@@ -146,11 +176,11 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  Search, RefreshLeft, Upload, View, Download, Delete, ZoomIn, User, Coin, Folder,
+  Search, RefreshLeft, Upload, View, Download, Delete, ZoomIn, User, UserFilled, Coin, Folder,
   Document, Picture, Tickets, Notebook, Film, Files, Collection
 } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
-import { attachmentPage, attachmentUpload, attachmentDownload, attachmentRemove } from '@/api/attachment'
+import { attachmentPage, attachmentUpload, attachmentDownload, attachmentRemove, attachmentUpdateStudents } from '@/api/attachment'
 import { studentPage } from '@/api/student'
 import { useMetaStore } from '@/store/meta'
 
@@ -167,7 +197,15 @@ const pageSize = ref(12)
 const uploading = ref(false)
 const uploadDialogVisible = ref(false)
 const uploadStudentIds = ref([])
+const pendingFileName = ref('')
+const pendingFileSize = ref(0)
 let pendingFile = null
+
+/* 修改关联学生 */
+const editStudentsVisible = ref(false)
+const editStudentsFile = ref(null)
+const editStudentIds = ref([])
+const savingStudents = ref(false)
 
 const viewerVisible = ref(false)
 const viewerUrl = ref('')
@@ -175,7 +213,7 @@ const viewerUrl = ref('')
 const IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'gif', 'webp']
 
 /* 当前筛选下的关联学生数与总大小（列表页统计） */
-const studentCount = computed(() => new Set(list.value.flatMap(a => a.studentIds || []).filter(Boolean)).size)
+const studentCount = computed(() => new Set(list.value.flatMap(a => (a.studentIds || '').split(',').filter(Boolean).map(Number))).size)
 const totalSizeText = computed(() => {
   const sum = list.value.reduce((acc, a) => acc + (a.fileSize || 0), 0)
   return formatSize(sum)
@@ -304,6 +342,8 @@ function beforeUpload(file) {
 /* 上传前必须先选择学生（课件可关联多个学生） */
 async function onUpload({ file }) {
   pendingFile = file
+  pendingFileName.value = file.name
+  pendingFileSize.value = file.size
   await ensureStudents()
   if (!metaStore.students.length) {
     ElMessage.warning('请先在「学生管理」中新增学生，再上传课件')
@@ -318,6 +358,8 @@ function cancelUpload() {
   uploadDialogVisible.value = false
   uploadStudentIds.value = []
   pendingFile = null
+  pendingFileName.value = ''
+  pendingFileSize.value = 0
 }
 
 async function confirmUpload() {
@@ -329,11 +371,37 @@ async function confirmUpload() {
     uploadDialogVisible.value = false
     uploadStudentIds.value = []
     pendingFile = null
+    pendingFileName.value = ''
+    pendingFileSize.value = 0
     fetchData()
   } catch (e) {
     /* 错误由拦截器提示 */
   } finally {
     uploading.value = false
+  }
+}
+
+/* ============ 修改关联学生 ============ */
+async function openEditStudents(a) {
+  await ensureStudents()
+  editStudentsFile.value = a
+  editStudentIds.value = (a.studentIds || '').split(',').filter(Boolean).map(Number)
+  editStudentsVisible.value = true
+}
+
+async function confirmEditStudents() {
+  if (!editStudentsFile.value || !editStudentIds.value.length) return
+  savingStudents.value = true
+  try {
+    await attachmentUpdateStudents(editStudentsFile.value.id, editStudentIds.value)
+    ElMessage.success('关联学生已更新')
+    editStudentsVisible.value = false
+    /* 重新拉当前页，刷新卡片上的关联学生姓名 */
+    fetchData()
+  } catch (e) {
+    /* 错误由拦截器提示 */
+  } finally {
+    savingStudents.value = false
   }
 }
 
@@ -395,7 +463,7 @@ onMounted(() => {
 <style lang="scss" scoped>
 .page-title {
   margin: 0 0 16px;
-  font-size: 18px;
+   font-size: 20px;
   font-weight: 700;
   color: var(--color-ink);
 }
@@ -464,10 +532,44 @@ onMounted(() => {
   font-size: 13px;
   color: var(--color-muted);
 }
+/* 待上传文件信息（显示在学生选择上方） */
+.upload-file {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--el-fill-color-light);
+  font-size: 13px;
 
-/* 卡片网格 */
+  .upload-file-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 600;
+  }
+  .upload-file-size {
+    flex-shrink: 0;
+    color: var(--color-muted);
+  }
+}
+
+/* 卡片网格：区域内滚动，不撑长页面 */
 .cw-grid-wrap {
-  min-height: 200px;
+  max-height: calc(100vh - 380px);
+  min-height: 240px;
+  overflow-y: auto;
+  /* 滚动条样式 */
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: var(--color-border);
+    border-radius: 3px;
+  }
 }
 .cw-grid {
   display: grid;
@@ -498,7 +600,7 @@ onMounted(() => {
     align-items: center;
     justify-content: center;
     overflow: hidden;
-    padding: 10px;
+    // padding: 10px;
     img {
       width: 100%;
       height: 100%;
@@ -509,6 +611,18 @@ onMounted(() => {
     }
     .cw-ext {
       position: absolute;
+      left: 10px;
+      bottom: 10px;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 4px;
+      color: #fff;
+      background: rgba(15, 23, 42, 0.55);
+      backdrop-filter: blur(4px);
+    }
+    .cw-size {
+       position: absolute;
       right: 10px;
       bottom: 10px;
       font-size: 10px;

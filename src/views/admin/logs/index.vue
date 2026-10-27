@@ -3,7 +3,7 @@
         <h2 class="page-title">操作日志</h2>
         <el-card>
             <div class="flex filter-bar">
-                <el-select v-model="filters.module" placeholder="模块" clearable style="width: 140px" class="mr-8" @change="load">
+                <el-select v-model="filters.module" placeholder="模块" clearable style="width: 140px" class="mr-8">
                     <el-option label="登录认证" value="auth" />
                     <el-option label="教师管理" value="teacher" />
                     <el-option label="消息推送" value="message" />
@@ -13,7 +13,7 @@
                     <el-option label="课件" value="attachment" />
                     <el-option label="数据备份" value="backup" />
                 </el-select>
-                <el-select v-model="filters.action" placeholder="动作" clearable style="width: 160px" class="mr-8" @change="load">
+                <el-select v-model="filters.action" placeholder="动作" clearable style="width: 160px" class="mr-8">
                     <el-option label="登录" value="LOGIN" />
                     <el-option label="登录失败" value="LOGIN_FAIL" />
                     <el-option label="新增" value="CREATE" />
@@ -29,7 +29,7 @@
                     <el-option label="存储切换" value="SET_STORAGE" />
                     <el-option label="恢复" value="RESTORE" />
                 </el-select>
-                <el-input v-model="filters.keyword" placeholder="用户名 / 详情" clearable style="width: 200px" class="mr-8" @keyup.enter="load" @clear="load" />
+                <el-input v-model="filters.keyword" placeholder="用户名 / 详情" clearable style="width: 200px" class="mr-8" @keyup.enter="load" />
                 <div class="flex-grow" />
                 <el-button :icon="RefreshLeft" class="mr-8" @click="resetFilters">重置</el-button>
                 <el-button type="primary" :icon="Search" @click="load">查询</el-button>
@@ -182,7 +182,7 @@
 <style lang="scss" scoped>
     .page-title {
         margin: 0 0 16px;
-        font-size: 18px;
+         font-size: 20px;
         font-weight: 700;
         color: var(--color-ink);
     }

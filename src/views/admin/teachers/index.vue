@@ -3,7 +3,7 @@
     <h2 class="page-title">教师管理</h2>
     <el-card>
       <div class="flex filter-bar">
-        <el-select v-model="filters.status" placeholder="状态" clearable style="width: 130px" class="mr-8" @change="load">
+        <el-select v-model="filters.status" placeholder="状态" clearable style="width: 130px" class="mr-8">
           <el-option label="正常" value="active" />
           <el-option label="已禁用" value="disabled" />
         </el-select>
@@ -14,7 +14,6 @@
           style="width: 220px"
           class="mr-8"
           @keyup.enter="load"
-          @clear="load"
         />
         <div class="flex-grow" />
         <el-button :icon="RefreshLeft" class="mr-8" @click="resetFilters">重置</el-button>
@@ -250,7 +249,7 @@ onMounted(load)
 <style lang="scss" scoped>
 .page-title {
   margin: 0 0 16px;
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
   color: var(--color-ink);
 }
@@ -287,6 +286,9 @@ onMounted(load)
     height: 48px;
     font-size: 18px;
   }
+}
+.teacher-meta {
+  text-align: left;
 }
 .teacher-name {
   font-size: 13px;
