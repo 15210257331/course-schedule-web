@@ -69,6 +69,9 @@
           <div v-for="a in list" :key="a.id" class="cw-card">
             <div class="cw-thumb" :class="`is-${fileType(a)}`" @click="isPreviewable(a) && previewAttachment(a)">
               <img v-if="isImage(a)" :src="a.filePath" alt="" loading="lazy" />
+              <div v-else-if="isPdf(a)" class="cw-pdf-cover">
+                <div class="cw-pdf-sheet"><span class="cw-pdf-badge">PDF</span></div>
+              </div>
               <el-icon v-else class="cw-thumb-icon"><component :is="typeIcon(a)" /></el-icon>
               <span class="cw-ext">{{ extLabel(a) }}</span>
               <span class="cw-size">{{ formatSize(a.fileSize) }}</span>
@@ -142,8 +145,10 @@
         <el-option v-for="s in metaStore.students" :key="s.id" :label="`${s.studentName}（${s.stage || '未设学段'}）`" :value="s.id" />
       </el-select>
       <template #footer>
-        <el-button @click="cancelUpload">取消</el-button>
-        <el-button type="primary" :disabled="!uploadStudentIds.length" @click="confirmUpload">开始上传</el-button>
+        <el-button :disabled="uploading" @click="cancelUpload">取消</el-button>
+        <el-button type="primary" :loading="uploading" :disabled="!uploadStudentIds.length" @click="confirmUpload">
+          {{ uploading ? '上传中…' : '开始上传' }}
+        </el-button>
       </template>
     </el-dialog>
 
@@ -332,8 +337,8 @@ function beforeUpload(file) {
     ElMessage.error(`「${file.name}」类型不支持`)
     return false
   }
-  if (file.size > 20 * 1024 * 1024) {
-    ElMessage.error('文件大小不能超过 20MB')
+  if (file.size > 30 * 1024 * 1024) {
+    ElMessage.error('文件大小不能超过 30MB')
     return false
   }
   return true
@@ -443,14 +448,9 @@ function previewAttachment(a) {
     return
   }
   if (isPdf(a)) {
-    const win = window.open('', '_blank')
-    attachmentDownload(a.id)
-      .then(blob => {
-        const url = URL.createObjectURL(blob)
-        if (win) win.location.href = url
-        setTimeout(() => URL.revokeObjectURL(url), 60000)
-      })
-      .catch(() => { if (win) win.close() })
+    /* 与图片一致走 /uploads 静态地址，浏览器内置阅读器直接渲染；
+       不走 blob（Safari 不支持顶层导航 blob:，会显示空白） */
+    window.open(a.filePath, '_blank')
   }
 }
 
@@ -646,7 +646,65 @@ onMounted(() => {
       transition: opacity 0.15s ease;
     }
     &.is-image { cursor: zoom-in; }
-    &.is-pdf { background: #fdeaea; .cw-thumb-icon { color: #d63031; } }
+    /* PDF 封面：白纸 + 右下折角 + 红色角标，模拟文档实体 */
+    &.is-pdf {
+      background: #faf5f2;
+      .cw-pdf-cover {
+        position: relative;
+        width: 72px;
+        height: 92px;
+      }
+      .cw-pdf-sheet {
+        position: absolute;
+        inset: 0;
+        background: #fff;
+        border: 1px solid #e8d9d3;
+        border-radius: 4px 8px 8px 4px;
+        box-shadow: 0 3px 8px rgba(214, 48, 49, 0.12);
+        /* 右上折角 */
+        &::before {
+          content: '';
+          position: absolute;
+          top: -1px;
+          right: -1px;
+          width: 18px;
+          height: 18px;
+          background: #f3e7e1;
+          border-left: 1px solid #e8d9d3;
+          border-bottom: 1px solid #e8d9d3;
+          border-radius: 0 8px 0 8px;
+        }
+        /* 文本行 */
+        &::after {
+          content: '';
+          position: absolute;
+          left: 12px;
+          right: 12px;
+          top: 22px;
+          bottom: 14px;
+          background:
+            repeating-linear-gradient(180deg, #d6dbe6 0 5px, transparent 5px 11px) top left / 100% 56%,
+            repeating-linear-gradient(180deg, #d6dbe6 0 5px, transparent 5px 11px) bottom left / 72% no-repeat;
+          opacity: 0.8;
+        }
+      }
+      .cw-pdf-badge {
+        position: absolute;
+        left: 50%;
+        bottom: -8px;
+        transform: translateX(-50%);
+        z-index: 1;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.5px;
+        line-height: 1;
+        padding: 4px 9px;
+        border-radius: 5px;
+        color: #fff;
+        background: linear-gradient(135deg, #e8554d, #c9342c);
+        box-shadow: 0 2px 6px rgba(201, 52, 44, 0.35);
+      }
+    }
     &.is-word { background: #e8f0fe; .cw-thumb-icon { color: #2b6cb0; } }
     &.is-excel { background: #e6f6e9; .cw-thumb-icon { color: #1a9a4a; } }
     &.is-ppt { background: #fdf0e3; .cw-thumb-icon { color: #e05a00; } }

@@ -11,6 +11,10 @@
         <div v-for="a in list" :key="a.id" class="att-card" :class="`is-${fileType(a)}`">
           <div class="att-thumb">
             <img v-if="isImage(a)" :src="a.filePath" alt="" loading="lazy" />
+            <template v-else-if="isPdf(a)">
+              <el-icon class="att-thumb-icon"><component :is="typeIcon(a)" /></el-icon>
+              <span class="att-pdf-label">PDF</span>
+            </template>
             <el-icon v-else class="att-thumb-icon"><component :is="typeIcon(a)" /></el-icon>
           </div>
           <div class="att-body">
@@ -176,14 +180,9 @@ function preview(a) {
     return
   }
   if (isPdf(a)) {
-    const win = window.open('', '_blank')
-    attachmentDownload(a.id)
-      .then(blob => {
-        const url = URL.createObjectURL(blob)
-        if (win) win.location.href = url
-        setTimeout(() => URL.revokeObjectURL(url), 60000)
-      })
-      .catch(() => { if (win) win.close() })
+    /* 与图片一致走 /uploads 静态地址，浏览器内置阅读器直接渲染；
+       不走 blob（Safari 不支持顶层导航 blob:，会显示空白） */
+    window.open(a.filePath, '_blank')
   }
 }
 </script>
@@ -222,6 +221,8 @@ function preview(a) {
     display: flex;
     align-items: center;
     justify-content: center;
+    flex-direction: column;
+    gap: 0;
     overflow: hidden;
     img {
       width: 100%;
@@ -231,8 +232,22 @@ function preview(a) {
     .att-thumb-icon {
       font-size: 22px;
     }
+    /* PDF 图标缩小一点，给下方 PDF 字样留空间 */
+    &.is-pdf .att-thumb-icon {
+      font-size: 17px;
+    }
     &.is-image { background: #e6f6e9; .att-thumb-icon { color: #1a9a4a; } }
-    &.is-pdf { background: #fdeaea; .att-thumb-icon { color: #d63031; } }
+    /* PDF：红底 + 白色 PDF 字样（与课件管理页的文档封面风格呼应） */
+    &.is-pdf {
+      background: #fdeaea;
+      .att-thumb-icon { color: #d63031; }
+      .att-pdf-label {
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.4px;
+        color: #c9342c;
+      }
+    }
     &.is-word { background: #e8f0fe; .att-thumb-icon { color: #2b6cb0; } }
     &.is-excel { background: #e6f6e9; .att-thumb-icon { color: #1a9a4a; } }
     &.is-ppt { background: #fdf0e3; .att-thumb-icon { color: #e05a00; } }
